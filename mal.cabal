@@ -1,0 +1,39 @@
+cabal-version:      2.4
+name:               mal
+version:            0.1.0.0
+homepage:           https:/github.com/aloussase/mal.git
+license:            MIT
+license-file:       LICENSE
+author:             Alexander Goussas
+maintainer:         goussasalexander@gmail.com
+extra-source-files: CHANGELOG.md
+
+library
+    exposed-modules:
+          Mal
+        , Parser
+        , Types
+    build-depends:
+          base                 ^>=4.14.3.0
+        , megaparsec           >= 9.2.1 && < 9.3
+        , text
+    hs-source-dirs:   src
+    default-extensions: OverloadedStrings
+    default-language: Haskell2010
+
+executable mal
+    main-is:          Main.hs
+    build-depends:
+          base                 ^>=4.14.3.0
+        , mal
+        , optparse-applicative >= 0.17.0 && < 0.18
+        , readline             >= 1.0.3 && < 1.1
+    hs-source-dirs:   app
+    default-language: Haskell2010
+
+test-suite mal-test
+    default-language: Haskell2010
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   tests
+    main-is:          MalTests.hs
+    build-depends:    base ^>=4.14.3.0
