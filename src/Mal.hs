@@ -1,4 +1,4 @@
-module Mal (module Types, module Parser) where
+module Mal (module Mal.Internal.Types, module Mal.Internal.Parser) where
 
-import           Parser
-import           Types
+import           Mal.Internal.Parser
+import           Mal.Internal.Types

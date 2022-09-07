@@ -1,6 +1,6 @@
-module Parser (parse) where
+module Mal.Internal.Parser (parse) where
 
-import           Types
+import           Mal.Internal.Types
 
 import           Prelude                    hiding (readList)
 

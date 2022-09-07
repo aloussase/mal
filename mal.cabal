@@ -1,4 +1,4 @@
-cabal-version:      2.4
+cabal-version:      3.0
 name:               mal
 version:            0.1.0.0
 homepage:           https:/github.com/aloussase/mal.git
@@ -11,10 +11,10 @@ extra-source-files: CHANGELOG.md
 library
     exposed-modules:
           Mal
-        , Parser
-        , Types
+        , Mal.Internal.Parser
+        , Mal.Internal.Types
     build-depends:
-          base                 ^>=4.14.3.0
+          base                 ^>=4.15.1
         , megaparsec           >= 9.2.1 && < 9.3
         , text
     hs-source-dirs:   src
@@ -24,7 +24,7 @@ library
 executable mal
     main-is:          Main.hs
     build-depends:
-          base                 ^>=4.14.3.0
+          base                 ^>=4.15.1
         , mal
         , optparse-applicative >= 0.17.0 && < 0.18
         , readline             >= 1.0.3 && < 1.1
@@ -36,4 +36,4 @@ test-suite mal-test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   tests
     main-is:          MalTests.hs
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base ^>=4.15.1

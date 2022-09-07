@@ -1,4 +1,4 @@
-module Types where
+module Mal.Internal.Types where
 
 data MalAtom =
         MalSymbol String
