@@ -26,12 +26,12 @@ read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLin
             R.addHistory line
             pure line
 
-eval :: String -> Mal.MalResult
-eval = Mal.parse
+eval :: String -> IO Mal.MalResult
+eval = Mal.run
 
 print' :: Mal.MalResult -> IO ()
-print' (Right result)                = print result
-print' (Left (Mal.ParseError error)) = putStrLn error
+print' (Right result) = print result
+print' (Left error)   = print error
 
 main :: IO ()
 main = do
@@ -41,7 +41,7 @@ main = do
         Repl   -> repl
 
     where
-        repl = read' >>= print' . eval >> repl
+        repl = read' >>= eval >>= print' >> repl
 
         opts = O.info (program <**> O.helper)
                 (O.fullDesc

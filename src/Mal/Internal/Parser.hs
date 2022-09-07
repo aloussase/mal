@@ -2,13 +2,16 @@ module Mal.Internal.Parser (parse) where
 
 import           Mal.Error
 import           Mal.Internal.Types
+import           Mal.Internal.Util          (pairs)
 
 import           Prelude                    hiding (readList)
 
 import           Control.Monad              (void)
 import           Data.Functor               ((<&>))
+import qualified Data.Map                   as M
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import qualified Data.Vector                as V
 import           Data.Void
 import           Text.Megaparsec            hiding (parse)
 import           Text.Megaparsec.Char
@@ -26,13 +29,13 @@ symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
 readNil :: Parser MalType
-readNil = label "nil" (symbol "nil") >> pure (MalAtom MalNil)
+readNil = label "nil" (symbol "nil") >> pure mkMalNil
 
 readNumber:: Parser MalType
-readNumber = MalAtom . MalNumber <$> L.decimal <?> "number"
+readNumber = mkMalNumber <$> L.decimal <?> "number"
 
 readString :: Parser MalType
-readString = MalAtom . MalString <$> label "string" parseString
+readString = mkMalString <$> label "string" parseString
     where
         parseString = do
             symbol "\""
@@ -42,16 +45,26 @@ readSymbol :: Parser MalType
 readSymbol = label "symbol" $ do
     fst <- letterChar
     rest <- many $ choice [alphaNumChar,  char '-']
-    pure $ MalAtom (MalSymbol $ fst:rest)
+    pure $ mkMalSymbol (fst : rest)
 
 readBool :: Parser MalType
-readBool = MalAtom <$> label "bool" (parseTrue <|> parseFalse)
+readBool = label "bool" (parseTrue <|> parseFalse)
     where
-        parseTrue = symbol "true" >> pure (MalBool True)
-        parseFalse = symbol "false" >> pure (MalBool False)
+        parseTrue = symbol "true" >> pure (mkMalBool True)
+        parseFalse = symbol "false" >> pure (mkMalBool False)
+
+
+readListLike :: (MalListLike a) => String -> Text -> Text -> ([MalType] -> a) -> Parser a
+readListLike lbl start end f =  label lbl (symbol start *> many readForm <* symbol end <&> f)
 
 readList :: Parser MalType
-readList = label "list" (symbol "(" *> many readForm <* symbol ")" <&> MalList)
+readList = MalList <$> readListLike "list" "(" ")" MkMalList
+
+readVector :: Parser MalType
+readVector = MalVec <$> readListLike "vector" "[" "]" (MkMalVec . V.fromList)
+
+readMap :: Parser MalType
+readMap = MalMap <$> readListLike "hash-map" "{" "}" (MkMalMap . M.fromList . pairs)
 
 readAtom :: Parser MalType
 readAtom = label "atom" $ choice
@@ -67,10 +80,11 @@ readComment = label "comment" $ do
     -- TODO: throw an error to signal a comment.
     symbol ";"
     anySingle `manyTill` (void newline <|> eof)
-    pure $ MalAtom MalNil
+    pure mkMalNil
 
 readForm :: Parser MalType
-readForm = label "valid mal expression" $ lexeme (readComment <|> readList <|> readAtom)
+readForm = label "valid mal expression" $ lexeme
+    (choice [readComment, readList, readAtom, readVector, readMap])
 
 parse :: String -> Either MalError MalType
 parse input = do
