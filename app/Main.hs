@@ -26,11 +26,12 @@ read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLin
             R.addHistory line
             pure line
 
-eval :: String -> Mal.MalType
+eval :: String -> Mal.MalResult
 eval = Mal.parse
 
-print' :: Mal.MalType -> IO ()
-print' = print
+print' :: Mal.MalResult -> IO ()
+print' (Right result)                = print result
+print' (Left (Mal.ParseError error)) = putStrLn error
 
 main :: IO ()
 main = do

@@ -1,5 +1,6 @@
 module Mal.Internal.Parser (parse) where
 
+import           Mal.Error
 import           Mal.Internal.Types
 
 import           Prelude                    hiding (readList)
@@ -66,10 +67,10 @@ readAtom = choice
     ]
 
 readForm :: Parser MalType
-readForm = readList <|> readAtom
+readForm = label "valid mal expression" $ readList <|> readAtom
 
-parse :: String -> MalType
+parse :: String -> Either MalError MalType
 parse input = do
     case runParser (space >> readForm <* eof) "<repl>" (T.pack input) of
-        Left err     -> error $ errorBundlePretty err
-        Right result -> result
+        Left err     -> Left $ ParseError $ errorBundlePretty err
+        Right result -> Right result

@@ -11,6 +11,7 @@ extra-source-files: CHANGELOG.md
 library
     exposed-modules:
           Mal
+        , Mal.Error
         , Mal.Internal.Parser
         , Mal.Internal.Types
     build-depends:
