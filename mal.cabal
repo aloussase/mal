@@ -36,4 +36,7 @@ test-suite mal-test
     type:             exitcode-stdio-1.0
     hs-source-dirs:   tests
     main-is:          MalTests.hs
-    build-depends:    base ^>=4.15.1
+    build-depends:
+          base ^>=4.15.1
+        , mal
+        , hspec

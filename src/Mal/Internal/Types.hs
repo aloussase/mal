@@ -6,8 +6,10 @@ data MalAtom =
         | MalString String
         | MalBool Bool
         | MalNil
+    deriving (Eq)
 
 data MalType = MalAtom MalAtom | MalList [MalType]
+    deriving (Eq)
 
 instance Show MalAtom where
     show (MalSymbol s)   = s
