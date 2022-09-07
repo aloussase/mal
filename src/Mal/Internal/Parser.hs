@@ -17,7 +17,7 @@ import qualified Text.Megaparsec.Char.Lexer as L
 type Parser = Parsec Void Text
 
 sc :: Parser ()
-sc = L.space space1 (L.skipLineComment ";") empty
+sc = L.space space1 (L.skipLineComment ";") (L.skipLineComment ";")
 
 lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
@@ -25,42 +25,36 @@ lexeme = L.lexeme sc
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
-spaceOrEof :: Parser ()
-spaceOrEof = void spaceChar <|> eof
-
-parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
-
 readNil :: Parser MalType
-readNil = symbol "nil" >> pure (MalAtom MalNil)
+readNil = label "nil" (symbol "nil") >> pure (MalAtom MalNil)
 
 readNumber:: Parser MalType
-readNumber = MalAtom . MalNumber <$> lexeme L.decimal
+readNumber = MalAtom . MalNumber <$> L.decimal <?> "number"
 
 readString :: Parser MalType
-readString = MalAtom . MalString <$> lexeme parseString
+readString = MalAtom . MalString <$> label "string" parseString
     where
         parseString = do
             symbol "\""
             L.charLiteral `manyTill` symbol "\""
 
 readSymbol :: Parser MalType
-readSymbol = do
+readSymbol = label "symbol" $ do
     fst <- letterChar
-    rest <- lexeme (many $ choice [alphaNumChar,  char '-'])
+    rest <- many $ choice [alphaNumChar,  char '-']
     pure $ MalAtom (MalSymbol $ fst:rest)
 
 readBool :: Parser MalType
-readBool = MalAtom <$> (parseTrue <|> parseFalse)
+readBool = MalAtom <$> label "bool" (parseTrue <|> parseFalse)
     where
         parseTrue = symbol "true" >> pure (MalBool True)
         parseFalse = symbol "false" >> pure (MalBool False)
 
 readList :: Parser MalType
-readList = symbol "(" *> lexeme (many readForm) <* symbol ")" <&> MalList
+readList = label "list" (symbol "(" *> many readForm <* symbol ")" <&> MalList)
 
 readAtom :: Parser MalType
-readAtom = choice
+readAtom = label "atom" $ choice
     [ try readBool
     , try readNil
     , readString
@@ -68,8 +62,15 @@ readAtom = choice
     , readNumber
     ]
 
+readComment :: Parser MalType
+readComment = label "comment" $ do
+    -- TODO: throw an error to signal a comment.
+    symbol ";"
+    anySingle `manyTill` (void newline <|> eof)
+    pure $ MalAtom MalNil
+
 readForm :: Parser MalType
-readForm = label "valid mal expression" $ readList <|> readAtom
+readForm = label "valid mal expression" $ lexeme (readComment <|> readList <|> readAtom)
 
 parse :: String -> Either MalError MalType
 parse input = do
