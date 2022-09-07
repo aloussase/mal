@@ -40,12 +40,14 @@ readNumber = MalAtom . MalNumber <$> lexeme L.decimal
 readString :: Parser MalType
 readString = MalAtom . MalString <$> lexeme parseString
     where
-        parseString = symbol "\"" >> manyTill L.charLiteral (symbol "\"")
+        parseString = do
+            symbol "\""
+            L.charLiteral `manyTill` symbol "\""
 
 readSymbol :: Parser MalType
 readSymbol = do
     fst <- letterChar
-    rest <- lexeme (manyTill L.charLiteral spaceOrEof)
+    rest <- lexeme (many $ choice [alphaNumChar,  char '-'])
     pure $ MalAtom (MalSymbol $ fst:rest)
 
 readBool :: Parser MalType
