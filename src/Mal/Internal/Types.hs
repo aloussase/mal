@@ -28,6 +28,7 @@ data MalScope = MkMalScope
     { parent   :: Maybe MalScope
     , bindings :: Map String MalType
     }
+    deriving Show
 
 data MalFunction = MkMalFunction
     { name :: String

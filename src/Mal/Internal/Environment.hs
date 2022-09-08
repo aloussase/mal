@@ -22,5 +22,5 @@ find scope s = fromMaybe (throw $ UnboundSymbol s) (go (parent scope) (bindings 
         go (Just !scope') !bindings' = bindings' !? s <|> go (parent scope') (bindings scope')
         go !_ !bindings'             = bindings' !? s
 
-insert :: MalScope -> String -> MalType -> MalScope
-insert self@(MkMalScope _ m) name thing = self { bindings = M.insert name thing m }
+insert :: String -> MalType -> MalScope -> MalScope
+insert name thing self@(MkMalScope _ m) = self { bindings = M.insert name thing m }

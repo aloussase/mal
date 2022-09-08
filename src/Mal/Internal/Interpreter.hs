@@ -12,7 +12,8 @@ import           Control.Monad              (liftM)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
 import           Data.Either.Combinators    (maybeToRight)
-import           Data.IORef
+import           Data.IORef                 (IORef, modifyIORef', newIORef,
+                                             readIORef)
 import           Data.Map                   (Map, (!?))
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
@@ -27,7 +28,7 @@ type Interpreter = ReaderT MalEnv IO MalType
 
 evalAst :: MalType -> Interpreter
 evalAst sym@(MalAtom (MalSymbol s)) = do
-    env     <- asks scope >>=  liftIO . readIORef
+    env     <- asks scope >>= liftIO . readIORef
     pure $ Env.find env s
 
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
@@ -40,6 +41,11 @@ evalAst (MalMap (MkMalMap m))    = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
+eval' xs@(MalList (MkMalList (MalAtom (MalSymbol "def"):(MalAtom (MalSymbol name)):val:_))) = do
+    evaledVal <- evalAst val
+    scope' <- asks scope
+    liftIO $ modifyIORef' scope' (Env.insert name val)
+    pure mkMalNil
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
 
