@@ -35,6 +35,12 @@ isFalsey _                         = False
 isTruthy :: MalType -> Bool
 isTruthy = not . isFalsey
 
+evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
+evalIfStmt condition trueBranch falseBranch = do
+    result <- eval' condition
+    if isTruthy result then eval' trueBranch
+    else eval' (fromMaybe mkMalNil falseBranch)
+
 evalAst :: MalType -> Interpreter
 evalAst sym@(MalAtom (MalSymbol s)) = do
     env     <- asks scope >>= liftIO . readIORef
@@ -50,12 +56,13 @@ evalAst (MalMap (MkMalMap m))    = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
-eval' (MalList (MkMalList (MalAtom (MalSymbol "def!"):(MalAtom (MalSymbol name)):val:_))) = do
+eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name), val])) = do
     evaledVal <- evalAst val
     scope' <- asks scope
     liftIO $ modifyIORef' scope' (Env.insert name val)
     pure mkMalNil
 
+-- let special form
 eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body))) = do
     scopeRef <- asks scope
     oldScope <- liftIO $ readIORef scopeRef
@@ -75,21 +82,14 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList binding
 
     pure result
 
+-- Do special form
 eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) = foldr1 (>>) $ map eval' body
 
-eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) = do
-    result <- eval' condition
-    if isTruthy result then
-        eval' trueBranch
-    else
-        pure mkMalNil
-
-eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) = do
-    result <- eval' condition
-    if isTruthy result then
-        eval' trueBranch
-    else
-        eval' falseBranch
+-- If expression
+eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) =
+    evalIfStmt condition trueBranch Nothing
+eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) =
+    evalIfStmt condition trueBranch (Just falseBranch)
 
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
