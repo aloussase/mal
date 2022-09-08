@@ -8,6 +8,7 @@ import qualified Options.Applicative     as O
 import qualified System.Console.Readline as R
 import           System.Exit             (exitSuccess)
 
+import           Data.IORef              (IORef)
 import qualified Mal
 
 data Input = File String | Repl
@@ -29,7 +30,7 @@ read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLin
             R.addHistory line
             pure line
 
-eval :: String -> IO Mal.MalType
+eval :: IORef Mal.MalScope -> String -> IO Mal.MalType
 eval = Mal.run
 
 print' :: Mal.MalType -> IO ()
@@ -37,15 +38,18 @@ print' = print
 
 main :: IO ()
 main = do
-    options <- O.execParser opts
+    options      <- O.execParser opts
+    initialScope <- Mal.emptyScope
+
     case input options of
         File _ -> error "not implemented"
-        Repl   -> repl
+        Repl   -> repl initialScope
 
     where
-        repl = do
-            (read' >>= eval >>= print') `catch` (\(err :: Mal.MalError) -> print err)
-            repl
+        repl :: IORef Mal.MalScope -> IO ()
+        repl scope = do
+            (read' >>= eval scope >>= print') `catch` (\(err :: Mal.MalError) -> print err)
+            repl scope
 
         opts = O.info (program <**> O.helper)
                 (O.fullDesc

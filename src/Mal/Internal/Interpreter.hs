@@ -41,7 +41,7 @@ evalAst (MalMap (MkMalMap m))    = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
-eval' xs@(MalList (MkMalList (MalAtom (MalSymbol "def"):(MalAtom (MalSymbol name)):val:_))) = do
+eval' xs@(MalList (MkMalList (MalAtom (MalSymbol "def!"):(MalAtom (MalSymbol name)):val:_))) = do
     evaledVal <- evalAst val
     scope' <- asks scope
     liftIO $ modifyIORef' scope' (Env.insert name val)
@@ -49,10 +49,10 @@ eval' xs@(MalList (MkMalList (MalAtom (MalSymbol "def"):(MalAtom (MalSymbol name
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
 
-eval :: MalType -> IO MalType
-eval ast =  do
-    env <- newIORef Env.empty { parent = Just builtins }
-    runReaderT (eval' ast) (MkMalEnv builtins env)
+eval :: IORef MalScope -> MalType -> IO MalType
+eval scope ast =  do
+    modifyIORef' scope (\s -> s { parent = Just builtins })
+    runReaderT (eval' ast) (MkMalEnv builtins scope)
     where
         builtins = Env.fromList
             [ ("+", mkMalFunction "+" B.plus)
