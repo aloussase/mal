@@ -79,6 +79,9 @@ evaluatorSpec = describe "Mal.run" $ do
             it "simple functions work" $
                 runWithScope "((fn* (x y) (+ x y)) 10 10)" `shouldReturn` mkMalNumber 20
 
+            it "works with def!" $
+                runWithScope "(do (def! add (fn* (x y) (+ x y))) (add 2 3))" `shouldReturn` mkMalNumber 5
+
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do
     it "can parse atoms" $ do

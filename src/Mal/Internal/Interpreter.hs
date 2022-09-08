@@ -35,12 +35,7 @@ withScope :: MalScope -> Interpreter -> Interpreter
 withScope newScope action = do
     !scopeRef <- asks scope
     !oldScope <- liftIO $ readIORef scopeRef
-
-    liftIO $ writeIORef scopeRef newScope
-    result <- action
-    liftIO $ writeIORef scopeRef oldScope
-    pure result
-
+    liftIO (writeIORef scopeRef newScope) *> action <* liftIO (writeIORef scopeRef oldScope)
 
 evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
 evalIfStmt condition trueBranch falseBranch = do
@@ -50,7 +45,7 @@ evalIfStmt condition trueBranch falseBranch = do
 
 evalAst :: MalType -> Interpreter
 evalAst sym@(MalAtom (MalSymbol s)) = do
-    env     <- asks scope >>= liftIO . readIORef
+    env <- asks scope >>= liftIO . readIORef
     liftIO $ evaluate (Env.find env s)
 
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
@@ -65,8 +60,8 @@ evalAst ast = pure ast
 eval' :: MalType -> Interpreter
 eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name), val])) = do
     evaledVal <- eval' val
-    scope' <- asks scope
-    liftIO $ modifyIORef' scope' (Env.insert name evaledVal)
+    currentScope <- asks scope
+    liftIO $ modifyIORef' currentScope (Env.insert name evaledVal)
     pure mkMalNil
 
 -- let special form
@@ -92,13 +87,13 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, fals
 eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params), body@(MalList _)])) = do
     let closure :: [MalType] -> Interpreter
         closure args = do
+            -- Create a new environment from the outer scope and bind the function arguments in it.
             currentScope <- asks scope >>= liftIO . readIORef
 
-            -- Create a new environment from the outer scope and bind the function
-            -- arguments in it.
-            let paramNames  = forM params $ \(MalAtom (MalSymbol param)) -> param
-                argBindings = bindings currentScope `M.union` M.fromList (zip paramNames args)
-                newScope = currentScope { parent = Just currentScope, bindings = argBindings }
+            let paramNames  = map (\(MalAtom (MalSymbol param)) -> param) params
+                newScope = currentScope { parent = Just currentScope
+                                        , bindings = M.fromList (zip paramNames args)
+                                        }
 
             -- Eval the function body in the new environment.
             withScope newScope (eval' body)
