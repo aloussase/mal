@@ -11,13 +11,14 @@ extra-source-files: CHANGELOG.md
 library
     exposed-modules:
           Mal
+        , Mal.Class
         , Mal.Error
-        , Mal.Internal.Parser
-        , Mal.Internal.Types
-        , Mal.Internal.Util
+        , Mal.Types
+        , Mal.Internal.Builtin
         , Mal.Internal.Environment
         , Mal.Internal.Interpreter
-        , Mal.Internal.Builtin
+        , Mal.Internal.Parser
+        , Mal.Internal.Util
     build-depends:
           base                 ^>=4.15.1
         , megaparsec           >= 9.2.1 && < 9.3

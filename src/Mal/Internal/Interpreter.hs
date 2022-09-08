@@ -2,11 +2,12 @@
 
 module Mal.Internal.Interpreter (eval) where
 
+import           Mal.Class
 import           Mal.Error
 import qualified Mal.Internal.Builtin       as B
 import qualified Mal.Internal.Environment   as Env
-import           Mal.Internal.Types
 import           Mal.Internal.Util          (pairs)
+import           Mal.Types
 
 import           Control.Exception          (catch, evaluate, throw, throwIO)
 import           Control.Monad              (forM, forM_, liftM)
@@ -117,6 +118,10 @@ eval scope ast =  do
             , ("-", mkMalFunction "-" B.sub)
             , ("/", mkMalFunction "/" B.quot)
             , ("*", mkMalFunction "*" B.mult)
+            , ("list", mkMalFunction "list" B.list)
+            , ("list?", mkMalFunction "list?" B.isList)
+            , ("empty?", mkMalFunction "empty?" B.isEmpty)
+            , ("count", mkMalFunction "count" B.count)
             ]
 
 evalCall :: MalType -> Interpreter

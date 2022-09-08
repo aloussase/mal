@@ -1,8 +1,8 @@
 module Mal.Internal.Parser (parse) where
 
 import           Mal.Error
-import           Mal.Internal.Types
 import           Mal.Internal.Util          (pairs)
+import           Mal.Types
 
 import           Prelude                    hiding (readList)
 
@@ -43,7 +43,7 @@ readString = mkMalString <$> label "string" parseString
 readSymbol :: Parser MalType
 readSymbol = label "symbol" $
     mkMalSymbol <$> some (choice
-        [alphaNumChar,  char '-', char '+', char '/', char '*', char '!'])
+        [alphaNumChar,  char '-', char '+', char '/', char '*', char '!', char '?'])
 
 readBool :: Parser MalType
 readBool = label "bool" (parseTrue <|> parseFalse)

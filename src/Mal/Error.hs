@@ -1,6 +1,6 @@
 module Mal.Error where
 
-import           Mal.Internal.Types
+import           Mal.Types
 
 import           Control.Exception
 

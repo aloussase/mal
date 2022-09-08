@@ -1,5 +1,4 @@
-{-# LANGUAGE DerivingVia #-}
-module Mal.Internal.Types where
+module Mal.Types where
 
 import           Mal.Internal.Util          (pairs)
 

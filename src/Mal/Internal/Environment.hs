@@ -1,7 +1,7 @@
 module Mal.Internal.Environment where
 
 import           Mal.Error
-import           Mal.Internal.Types
+import           Mal.Types
 
 import           Control.Applicative     ((<|>))
 import           Control.Exception       (throw)
