@@ -1,6 +1,9 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Main where
 
 import           Control.Applicative     ((<**>), (<|>))
+import           Control.Exception       (catch)
 import qualified Options.Applicative     as O
 import qualified System.Console.Readline as R
 import           System.Exit             (exitSuccess)
@@ -26,12 +29,11 @@ read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLin
             R.addHistory line
             pure line
 
-eval :: String -> IO Mal.MalResult
+eval :: String -> IO Mal.MalType
 eval = Mal.run
 
-print' :: Mal.MalResult -> IO ()
-print' (Right result) = print result
-print' (Left error)   = print error
+print' :: Mal.MalType -> IO ()
+print' = print
 
 main :: IO ()
 main = do
@@ -41,7 +43,9 @@ main = do
         Repl   -> repl
 
     where
-        repl = read' >>= eval >>= print' >> repl
+        repl = do
+            (read' >>= eval >>= print') `catch` (\(err :: Mal.MalError) -> print err)
+            repl
 
         opts = O.info (program <**> O.helper)
                 (O.fullDesc

@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 module Mal.Internal.Types where
 
 import           Mal.Internal.Util (pairs)
@@ -23,6 +24,25 @@ instance MalListLike MalMap where
 showListLike :: (MalListLike a) => String -> String -> a -> String
 showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, end]
 
+data MalScope = MkMalScope
+    { parent   :: Maybe MalScope
+    , bindings :: Map String MalType
+    }
+
+data MalFunction = MkMalFunction
+    { name :: String
+    , body :: MalScope -> [MalType] -> MalType
+    }
+
+mkMalFunction :: String -> (MalScope -> [MalType] -> MalType) -> MalType
+mkMalFunction name body = MalFunction $ MkMalFunction { name = name, body = body }
+
+instance Show MalFunction where show f = mconcat ["<fn: ", name f, ">"]
+instance Eq MalFunction where
+    MkMalFunction { name = a } == MkMalFunction { name = b } = a == b
+instance Ord MalFunction where
+    MkMalFunction { name = a } `compare` MkMalFunction { name = b } = a `compare` b
+
 data MalAtom =
         MalSymbol String
         | MalNumber Int
@@ -36,6 +56,7 @@ data MalType =
         | MalList MalList
         | MalVec MalVec
         | MalMap MalMap
+        | MalFunction MalFunction
     deriving (Eq, Ord)
 
 -- | Smart constructor for making Mal Symbol.
@@ -77,7 +98,8 @@ instance Show MalAtom where
     show MalNil          = "nil"
 
 instance Show MalType where
-    show (MalAtom a)  = show a
-    show (MalList xs) = showListLike "(" ")" xs
-    show (MalVec vs)  = showListLike "[" "]" vs
-    show (MalMap m)   = showListLike "{" "}" m
+    show (MalAtom a)     = show a
+    show (MalList xs)    = showListLike "(" ")" xs
+    show (MalVec vs)     = showListLike "[" "]" vs
+    show (MalMap m)      = showListLike "{" "}" m
+    show (MalFunction f) = show f

@@ -6,6 +6,7 @@ import           Mal.Internal.Util          (pairs)
 
 import           Prelude                    hiding (readList)
 
+import           Control.Exception          (throw)
 import           Control.Monad              (void)
 import           Data.Functor               ((<&>))
 import qualified Data.Map                   as M
@@ -37,22 +38,18 @@ readNumber = mkMalNumber <$> L.decimal <?> "number"
 readString :: Parser MalType
 readString = mkMalString <$> label "string" parseString
     where
-        parseString = do
-            symbol "\""
-            L.charLiteral `manyTill` symbol "\""
+        parseString = symbol "\"" >> L.charLiteral `manyTill` symbol "\""
 
 readSymbol :: Parser MalType
-readSymbol = label "symbol" $ do
-    fst <- letterChar
-    rest <- many $ choice [alphaNumChar,  char '-']
-    pure $ mkMalSymbol (fst : rest)
+readSymbol = label "symbol" $
+    mkMalSymbol <$> some (choice
+        [alphaNumChar,  char '-', char '+', char '/', char '*'])
 
 readBool :: Parser MalType
 readBool = label "bool" (parseTrue <|> parseFalse)
     where
         parseTrue = symbol "true" >> pure (mkMalBool True)
         parseFalse = symbol "false" >> pure (mkMalBool False)
-
 
 readListLike :: (MalListLike a) => String -> Text -> Text -> ([MalType] -> a) -> Parser a
 readListLike lbl start end f =  label lbl (symbol start *> many readForm <* symbol end <&> f)
@@ -71,8 +68,8 @@ readAtom = label "atom" $ choice
     [ try readBool
     , try readNil
     , readString
-    , readSymbol
-    , readNumber
+    , try readNumber
+    , try readSymbol
     ]
 
 readComment :: Parser MalType
@@ -86,8 +83,8 @@ readForm :: Parser MalType
 readForm = label "valid mal expression" $ lexeme
     (choice [readComment, readList, readAtom, readVector, readMap])
 
-parse :: String -> Either MalError MalType
-parse input = do
+parse :: String -> MalType
+parse input =
     case runParser (space >> readForm <* eof) "<repl>" (T.pack input) of
-        Left err     -> Left $ ParseError $ errorBundlePretty err
-        Right result -> Right result
+        Left err     -> throw $ ParseError (errorBundlePretty err)
+        Right result -> result

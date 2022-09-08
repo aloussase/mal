@@ -27,7 +27,7 @@ library
         , transformers
         , either
     hs-source-dirs:   src
-    default-extensions: OverloadedStrings
+    default-extensions: OverloadedStrings, BangPatterns
     default-language: Haskell2010
 
 executable mal
