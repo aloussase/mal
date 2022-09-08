@@ -5,21 +5,38 @@ import           Mal
 import           Control.Exception (evaluate)
 import           Test.Hspec
 
+
+runWithScope s = do
+    scope <- Mal.emptyScope
+    run scope s
+
 evaluatorSpec :: Spec
 evaluatorSpec = describe "Mal.run" $ do
     context "arithmetic" $ do
         it "can evaluate simple arithmetic" $ do
-            run "(+ 1 2)" `shouldReturn` mkMalNumber 3
-            run "(* 1 2)" `shouldReturn` mkMalNumber 2
-            run "(/ 2 1)" `shouldReturn` mkMalNumber 2
-            run "(- 2 1)" `shouldReturn` mkMalNumber (-3)
+            runWithScope "(+ 1 2)" `shouldReturn` mkMalNumber 3
+            runWithScope "(* 1 2)" `shouldReturn` mkMalNumber 2
+            runWithScope "(/ 2 1)" `shouldReturn` mkMalNumber 2
+            runWithScope "(- 2 1)" `shouldReturn` mkMalNumber (-3)
 
         it "can evalute expressions nested in vectors" $ do
-            run "[(+ 1 2) (* 2 3 (+ 3 2))]" `shouldReturn` mkMalVector [mkMalNumber 3, mkMalNumber 30]
+            runWithScope "[(+ 1 2) (* 2 3 (+ 3 2))]" `shouldReturn` mkMalVector [mkMalNumber 3, mkMalNumber 30]
 
         it "can evaluate expression nested in hash maps" $ do
-            run "{hello (* 3 2) world (+ 5 (* 2 1))}"
+            runWithScope "{hello (* 3 2) world (+ 5 (* 2 1))}"
                 `shouldReturn` mkMalMap [mkMalSymbol "hello", mkMalNumber 6, mkMalSymbol "world", mkMalNumber 7]
+
+    context "environment" $ do
+        context "let*" $ do
+            it "can bind simple expressions" $
+                runWithScope "(let* (x 10) (+ x 4))" `shouldReturn` mkMalNumber 14
+
+            it "works with nested bindings" $ do
+                runWithScope "(let* (x (let* (y 10) (+ y 12))) (+ x 12))" `shouldReturn` mkMalNumber 34
+                runWithScope "(let* (x 10) (let* (y 2) (+ x y)))" `shouldReturn` mkMalNumber 12
+
+            it "can bind builtin functions" $
+                runWithScope "(let* (add +) (add 1 2))" `shouldReturn` mkMalNumber 3
 
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do

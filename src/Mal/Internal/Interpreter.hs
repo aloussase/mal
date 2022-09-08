@@ -6,14 +6,15 @@ import           Mal.Error
 import qualified Mal.Internal.Builtin       as B
 import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Types
+import           Mal.Internal.Util          (pairs)
 
 import           Control.Exception          (catch, evaluate, throw, throwIO)
-import           Control.Monad              (liftM)
+import           Control.Monad              (forM_, liftM)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
 import           Data.Either.Combinators    (maybeToRight)
 import           Data.IORef                 (IORef, modifyIORef', newIORef,
-                                             readIORef)
+                                             readIORef, writeIORef)
 import           Data.Map                   (Map, (!?))
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
@@ -41,11 +42,31 @@ evalAst (MalMap (MkMalMap m))    = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
-eval' xs@(MalList (MkMalList (MalAtom (MalSymbol "def!"):(MalAtom (MalSymbol name)):val:_))) = do
+eval' (MalList (MkMalList (MalAtom (MalSymbol "def!"):(MalAtom (MalSymbol name)):val:_))) = do
     evaledVal <- evalAst val
     scope' <- asks scope
     liftIO $ modifyIORef' scope' (Env.insert name val)
     pure mkMalNil
+
+eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body:_))) = do
+    scopeRef <- asks scope
+    oldScope <- liftIO $ readIORef scopeRef
+
+    -- Evaluate the let* body in a new environment.
+    liftIO $ writeIORef scopeRef Env.empty { parent = Just oldScope }
+
+    forM_ (pairs bindings) $ \(MalAtom (MalSymbol k), v) -> do
+        evaledValue <- eval' v
+        currentScope <- asks scope
+        liftIO $ modifyIORef' currentScope (Env.insert k evaledValue)
+
+    result <- eval' body
+
+    -- Restore the previous environment.
+    liftIO $ writeIORef scopeRef oldScope
+
+    pure result
+
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
 
