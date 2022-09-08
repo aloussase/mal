@@ -84,7 +84,12 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) = 
     else
         pure mkMalNil
 
-eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) = undefined
+eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) = do
+    result <- eval' condition
+    if isTruthy result then
+        eval' trueBranch
+    else
+        eval' falseBranch
 
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast

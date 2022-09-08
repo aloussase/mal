@@ -62,6 +62,19 @@ evaluatorSpec = describe "Mal.run" $ do
             it "can be nested" $ do
                 runWithScope "(do (def! x 10) (do (+ x 22)))" `shouldReturn` mkMalNumber 32
 
+        context "if" $ do
+            it "works without an else branch" $ do
+                runWithScope "(if true 12)" `shouldReturn` mkMalNumber 12
+                runWithScope "(if false 12)" `shouldReturn` mkMalNil
+
+            it "works with an else branch" $ do
+                runWithScope "(if true 12 43)" `shouldReturn` mkMalNumber 12
+                runWithScope "(if false 12 43)" `shouldReturn` mkMalNumber 43
+
+            it "works with complex expressions" $ do
+                runWithScope "(if (+ 1 2) (do (def! x 10) (+ x 10)))" `shouldReturn` mkMalNumber 20
+                runWithScope "(if nil nil (do (let* (x (+ 1 2)) x)))" `shouldReturn` mkMalNumber 3
+
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do
     it "can parse atoms" $ do
