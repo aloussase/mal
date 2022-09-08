@@ -27,6 +27,16 @@ evaluatorSpec = describe "Mal.run" $ do
                 `shouldReturn` mkMalMap [mkMalSymbol "hello", mkMalNumber 6, mkMalSymbol "world", mkMalNumber 7]
 
     context "environment" $ do
+        context "def!" $ do
+            it "can bind simple expressions" $
+                runWithScope "(do (def! x 10) (+ x 10))" `shouldReturn` mkMalNumber 20
+
+            it "shadows existing bindings" $
+                runWithScope "(do (def! x 12) (def! x 10) x)" `shouldReturn` mkMalNumber 10
+
+            it "binds variables at the current scope only" $
+                runWithScope "(do (let* () (def! x 10)) x)" `shouldThrow` anyException
+
         context "let*" $ do
             it "can bind simple expressions" $
                 runWithScope "(let* (x 10) (+ x 4))" `shouldReturn` mkMalNumber 14
@@ -37,6 +47,20 @@ evaluatorSpec = describe "Mal.run" $ do
 
             it "can bind builtin functions" $
                 runWithScope "(let* (add +) (add 1 2))" `shouldReturn` mkMalNumber 3
+
+            it "does not let bindings escape their scope" $
+                runWithScope "(do (let* (x 10)) x)" `shouldThrow` anyException
+
+            it "works with multiple expresssion in the body" $
+                runWithScope "(let* (x 10) x (+ x 1))" `shouldReturn` mkMalNumber 11
+
+    context "control structures" $ do
+        context "do" $ do
+            it "can evaluate many expressions" $ do
+                runWithScope "(do (+ 1 2) 12 \"hello\" true false nil)" `shouldReturn` mkMalNil
+
+            it "can be nested" $ do
+                runWithScope "(do (def! x 10) (do (+ x 22)))" `shouldReturn` mkMalNumber 32
 
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do

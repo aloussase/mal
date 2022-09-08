@@ -9,7 +9,7 @@ import           Mal.Internal.Types
 import           Mal.Internal.Util          (pairs)
 
 import           Control.Exception          (catch, evaluate, throw, throwIO)
-import           Control.Monad              (forM_, liftM)
+import           Control.Monad              (forM, forM_, liftM)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
 import           Data.Either.Combinators    (maybeToRight)
@@ -27,10 +27,18 @@ data MalEnv = MkMalEnv
 
 type Interpreter = ReaderT MalEnv IO MalType
 
+isFalsey :: MalType -> Bool
+isFalsey (MalAtom (MalBool False)) = True
+isFalsey (MalAtom MalNil)          = True
+isFalsey _                         = False
+
+isTruthy :: MalType -> Bool
+isTruthy = not . isFalsey
+
 evalAst :: MalType -> Interpreter
 evalAst sym@(MalAtom (MalSymbol s)) = do
     env     <- asks scope >>= liftIO . readIORef
-    pure $ Env.find env s
+    liftIO $ evaluate (Env.find env s)
 
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
 evalAst (MalVec (MkMalVec vs))   = mkMalVector <$> traverse eval' (V.toList vs)
@@ -48,7 +56,7 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "def!"):(MalAtom (MalSymbol name))
     liftIO $ modifyIORef' scope' (Env.insert name val)
     pure mkMalNil
 
-eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body:_))) = do
+eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body))) = do
     scopeRef <- asks scope
     oldScope <- liftIO $ readIORef scopeRef
 
@@ -60,12 +68,23 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList binding
         currentScope <- asks scope
         liftIO $ modifyIORef' currentScope (Env.insert k evaledValue)
 
-    result <- eval' body
+    result <- foldr1 (>>) $ map eval' body
 
     -- Restore the previous environment.
     liftIO $ writeIORef scopeRef oldScope
 
     pure result
+
+eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) = foldr1 (>>) $ map eval' body
+
+eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) = do
+    result <- eval' condition
+    if isTruthy result then
+        eval' trueBranch
+    else
+        pure mkMalNil
+
+eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) = undefined
 
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast

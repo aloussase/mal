@@ -17,7 +17,7 @@ fromList :: [(String, MalType)] -> MalScope
 fromList xs = MkMalScope { parent = Nothing, bindings = M.fromList xs }
 
 find :: MalScope -> String -> MalType
-find scope s = fromMaybe (throw $ UnboundSymbol s) (go (parent scope) (bindings scope))
+find !scope !s = fromMaybe (throw $ UnboundSymbol s) (go (parent scope) (bindings scope))
     where
         go (Just !scope') !bindings' = bindings' !? s <|> go (parent scope') (bindings scope')
         go !_ !bindings'             = bindings' !? s
