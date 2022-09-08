@@ -1,12 +1,14 @@
 {-# LANGUAGE DerivingVia #-}
 module Mal.Internal.Types where
 
-import           Mal.Internal.Util (pairs)
+import           Mal.Internal.Util          (pairs)
 
-import           Data.Map          (Map)
-import qualified Data.Map          as M
-import           Data.Vector       (Vector)
-import qualified Data.Vector       as V
+import           Control.Monad.Trans.Reader (ReaderT)
+import           Data.IORef                 (IORef)
+import           Data.Map                   (Map)
+import qualified Data.Map                   as M
+import           Data.Vector                (Vector)
+import qualified Data.Vector                as V
 
 newtype MalVec = MkMalVec (Vector MalType) deriving (Show, Eq, Ord)
 newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
@@ -24,6 +26,11 @@ instance MalListLike MalMap where
 showListLike :: (MalListLike a) => String -> String -> a -> String
 showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, end]
 
+data MalEnv = MkMalEnv
+    { builtins :: MalScope
+    , scope    :: IORef MalScope
+    }
+
 data MalScope = MkMalScope
     { parent   :: Maybe MalScope
     , bindings :: Map String MalType
@@ -32,10 +39,10 @@ data MalScope = MkMalScope
 
 data MalFunction = MkMalFunction
     { name :: String
-    , body :: MalScope -> [MalType] -> MalType
+    , body :: [MalType] -> ReaderT MalEnv IO MalType
     }
 
-mkMalFunction :: String -> (MalScope -> [MalType] -> MalType) -> MalType
+mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
 mkMalFunction name body = MalFunction $ MkMalFunction { name = name, body = body }
 
 instance Show MalFunction where show f = mconcat ["<fn: ", name f, ">"]

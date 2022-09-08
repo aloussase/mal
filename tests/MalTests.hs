@@ -75,6 +75,10 @@ evaluatorSpec = describe "Mal.run" $ do
                 runWithScope "(if (+ 1 2) (do (def! x 10) (+ x 10)))" `shouldReturn` mkMalNumber 20
                 runWithScope "(if nil nil (do (let* (x (+ 1 2)) x)))" `shouldReturn` mkMalNumber 3
 
+        context "fn*" $ do
+            it "simple functions work" $
+                runWithScope "((fn* (x y) (+ x y)) 10 10)" `shouldReturn` mkMalNumber 20
+
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do
     it "can parse atoms" $ do

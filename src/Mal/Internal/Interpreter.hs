@@ -20,11 +20,6 @@ import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
 
-data MalEnv = MkMalEnv
-    { builtins :: MalScope
-    , scope    :: IORef MalScope
-    }
-
 type Interpreter = ReaderT MalEnv IO MalType
 
 isFalsey :: MalType -> Bool
@@ -34,6 +29,17 @@ isFalsey _                         = False
 
 isTruthy :: MalType -> Bool
 isTruthy = not . isFalsey
+
+withScope :: MalScope -> Interpreter -> Interpreter
+withScope newScope action = do
+    !scopeRef <- asks scope
+    !oldScope <- liftIO $ readIORef scopeRef
+
+    liftIO $ writeIORef scopeRef newScope
+    result <- action
+    liftIO $ writeIORef scopeRef oldScope
+    pure result
+
 
 evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
 evalIfStmt condition trueBranch falseBranch = do
@@ -57,30 +63,20 @@ evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
 eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name), val])) = do
-    evaledVal <- evalAst val
+    evaledVal <- eval' val
     scope' <- asks scope
-    liftIO $ modifyIORef' scope' (Env.insert name val)
+    liftIO $ modifyIORef' scope' (Env.insert name evaledVal)
     pure mkMalNil
 
 -- let special form
 eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body))) = do
-    scopeRef <- asks scope
-    oldScope <- liftIO $ readIORef scopeRef
-
-    -- Evaluate the let* body in a new environment.
-    liftIO $ writeIORef scopeRef Env.empty { parent = Just oldScope }
-
-    forM_ (pairs bindings) $ \(MalAtom (MalSymbol k), v) -> do
-        evaledValue <- eval' v
-        currentScope <- asks scope
-        liftIO $ modifyIORef' currentScope (Env.insert k evaledValue)
-
-    result <- foldr1 (>>) $ map eval' body
-
-    -- Restore the previous environment.
-    liftIO $ writeIORef scopeRef oldScope
-
-    pure result
+    currentScope <- asks scope >>= liftIO . readIORef
+    withScope (Env.empty { parent = Just currentScope }) $ do
+        forM_ (pairs bindings) $ \(MalAtom (MalSymbol k), v) -> do
+            evaledValue <- eval' v
+            currentScope <- asks scope
+            liftIO $ modifyIORef' currentScope (Env.insert k evaledValue)
+        foldr1 (>>) $ map eval' body
 
 -- Do special form
 eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) = foldr1 (>>) $ map eval' body
@@ -90,6 +86,23 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) =
     evalIfStmt condition trueBranch Nothing
 eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) =
     evalIfStmt condition trueBranch (Just falseBranch)
+
+-- fn special form (lambdas)
+eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params), body@(MalList _)])) = do
+    let closure :: [MalType] -> Interpreter
+        closure args = do
+            currentScope <- asks scope >>= liftIO . readIORef
+
+            -- Create a new environment from the outer scope and bind the function
+            -- arguments in it.
+            let paramNames  = forM params $ \(MalAtom (MalSymbol param)) -> param
+                argBindings = bindings currentScope `M.union` M.fromList (zip paramNames args)
+                newScope = currentScope { parent = Just currentScope, bindings = argBindings }
+
+            -- Eval the function body in the new environment.
+            withScope newScope (eval' body)
+
+    pure $ mkMalFunction "lambda" closure
 
 eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
@@ -107,7 +120,5 @@ eval scope ast =  do
             ]
 
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func):ys))) = do
-    scope' <- asks scope >>= liftIO . readIORef
-    pure $ func scope' ys
+evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func):ys))) = func ys
 evalCall t = liftIO $ throwIO (NotAFunction t)
