@@ -134,10 +134,11 @@ eval scope ast =  do
             , (">", mkMalFunction ">" B.greaterThan)
             , (">=", mkMalFunction ">=" B.greaterThanEq)
             , ("prn", mkMalFunction "prn" B.prn)
+            , ("str", mkMalFunction "str" B.str)
+            , ("println", mkMalFunction "println" B.println)
             ]
 
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction (MkMalFunction name func):ys))) = do
-    -- liftIO $ putStrLn ("calling " <> name <> " with args: " <> show ys)
-    func ys
-evalCall t = liftIO $ throwIO (NotAFunction t)
+evalCall (MalList (MkMalList (MalFunction (MkMalFunction name func):ys))) = func ys
+evalCall (MalList (MkMalList (x:_))) = liftIO $ throwIO (NotAFunction x)
+evalCall _ = undefined

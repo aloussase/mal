@@ -13,8 +13,10 @@ module Mal.Internal.Builtin (
     , lessThanEq
     , greaterThan
     , greaterThanEq
-     -- * IO functions
+     -- * String functions
     , prn
+    , str
+    , println
     -- * List functions
     , list
     , isList
@@ -24,17 +26,23 @@ module Mal.Internal.Builtin (
 
 import           Mal.Class
 import           Mal.Error
+import           Mal.Internal.Util          (unquoteString)
+import           Mal.PrettyPrinter
 import           Mal.Types
 
 import           Prelude                    hiding (quot)
 
 import           Control.Exception          (throw, throwIO)
+import           Control.Monad              (forM_)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT)
-import           Data.List                  (foldl1')
+import           Data.Function              ((&))
+import           Data.List                  (foldl', foldl1', foldr)
+import qualified Data.Text.Lazy             as T
+import qualified Data.Text.Lazy.IO          as TIO
 
 
-type Function = [MalType] -> ReaderT MalEnv IO MalType
+type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
 
 -- Arithmetic functions
 reduceMalNumbers :: String -> (Int -> Int -> Int) -> [MalType] -> ReaderT MalEnv IO MalType
@@ -44,28 +52,28 @@ reduceMalNumbers funcName f xs = pure $ foldl1' go xs
     go _ x                         = throw $ InvalidArgs funcName [x]
 
 -- | 'plus' returns the sum of its arguments.
-plus :: Function
+plus :: BuiltinFunction
 plus = reduceMalNumbers "+" (+)
 
 -- | 'sub' returns the subtraction of its arguments.
 --
 -- >>> (- 1 2 3)
 -- -4
-sub :: Function
+sub :: BuiltinFunction
 sub = reduceMalNumbers "-" (-)
 
 -- | 'quot' returns the division of its arguments.
 --
 -- >>> (/ 8 4 2)
 -- 1
-quot :: Function
+quot :: BuiltinFunction
 quot = reduceMalNumbers "/" div
 
 -- | 'mult' returns the multiplication of its arguments.
 --
 -- >>> (* 1 2 3)
 -- 6
-mult :: Function
+mult :: BuiltinFunction
 mult = reduceMalNumbers "*" (*)
 
 -- List functions
@@ -74,63 +82,77 @@ mult = reduceMalNumbers "*" (*)
 --
 -- >>> (list 1 2 3)
 -- (1 2 3)
-list :: Function
+list :: BuiltinFunction
 list = liftMalType
 
 -- | Return True if the argument is a list.
 --
 -- >>> (list? (list 1 2 3))
 -- #t
-isList :: Function
+isList :: BuiltinFunction
 isList [MalList _] = liftMalType True
 isList _           = liftMalType False
 
 -- | Return true is the argument is a list and is empty, false otherwise.
-isEmpty :: Function
+isEmpty :: BuiltinFunction
 isEmpty [MalList (MkMalList [])] = liftMalType True
 isEmpty _                        = liftMalType False
 
 -- | Return the number of elements in the provided list.
-count :: Function
+count :: BuiltinFunction
 count [MalList (MkMalList xs)] = liftMalType . length $ xs
 count xs                       = liftIO $ throwIO (InvalidArgs "count" xs)
 
 -- Logic functions
 
-compareNumbers :: String -> (Int -> Int -> Bool) -> Function
+compareNumbers :: String -> (Int -> Int -> Bool) -> BuiltinFunction
 compareNumbers _ cmp [MalAtom (MalNumber x), MalAtom (MalNumber y)] = liftMalType $ cmp x y
 compareNumbers funcName _ xs  = liftIO $ throwIO (InvalidArgs funcName xs)
 
 -- | 'eq' returns true if the provided arguments are equal.
-eq :: Function
+eq :: BuiltinFunction
 eq = compareNumbers "=" (==)
 
 -- | 'lessThan' return true if the first argument is less than the second one.
 --
 -- >>> (< 1 2)
 -- #t
-lessThan :: Function
+lessThan :: BuiltinFunction
 lessThan = compareNumbers "<" (<)
 
 -- | 'lessThanEq' return true if the first argument is less than or equal to the
 -- second one.
-lessThanEq :: Function
+lessThanEq :: BuiltinFunction
 lessThanEq = compareNumbers "<=" (<=)
 
 -- | 'greaterThan' return true if the first argument is greater than the second one.
-greaterThan :: Function
+greaterThan :: BuiltinFunction
 greaterThan = compareNumbers ">" (>)
 
 -- | 'greaterThanEq' return true if the first argument is greater than or equal to the
 -- second one.
-greaterThanEq :: Function
+greaterThanEq :: BuiltinFunction
 greaterThanEq = compareNumbers ">=" (>=)
 
--- IO Functions
+-- String Functions
 
 -- | 'prn' prints the provided argument.
-prn :: Function
-prn [o] = do
-    liftIO $ print o
-    pure mkMalNil
-prn xs = liftIO $ throwIO (InvalidArgs "prn" xs)
+prn :: BuiltinFunction
+prn xs = xs
+    & liftIO . TIO.putStrLn
+    . mconcat
+    . init
+    . foldl' (\acc x -> acc ++ [showReadably x, " "]) []
+    >> pure mkMalNil
+
+-- | 'println' prints the given arguments as formated by 'str'.
+println :: BuiltinFunction
+println xs = str xs >>= liftIO . print >> pure mkMalNil
+
+-- | 'str' returns a string that is the result of joining the string the representation
+-- of its arguments using a space character as a separator.
+str :: BuiltinFunction
+str = pure
+    . mkMalString
+    . init
+    . foldl' (\acc x -> mconcat [acc, unquoteString (show x), " "]) ""

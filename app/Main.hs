@@ -32,7 +32,7 @@ eval :: IORef Mal.MalScope -> String -> IO Mal.MalType
 eval = Mal.run
 
 print' :: Mal.MalType -> IO ()
-print' = print
+print' = Mal.printReadably
 
 main :: IO ()
 main = do
@@ -46,7 +46,7 @@ main = do
     where
         repl :: IORef Mal.MalScope -> IO ()
         repl scope = do
-            (read' >>= eval scope >>= print') `catch` (\(err :: Mal.MalError) -> print err)
+            (read' >>= eval scope >>= print') `catch` (\(err :: Mal.MalError) -> Mal.printError err)
             repl scope
 
         opts = O.info (program <**> O.helper)

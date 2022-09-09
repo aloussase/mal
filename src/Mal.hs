@@ -15,6 +15,7 @@ module Mal (
       module Mal.Types
     , module Mal.Error
     , module Mal.Class
+    , module Mal.PrettyPrinter
     , emptyScope
     , run
     , eval
@@ -26,6 +27,7 @@ import           Mal.Error
 import qualified Mal.Internal.Environment as Env
 import           Mal.Internal.Interpreter (eval)
 import           Mal.Internal.Parser      (parse)
+import           Mal.PrettyPrinter
 import           Mal.Types
 
 import           Data.IORef               (IORef, newIORef)

@@ -14,6 +14,7 @@ library
         , Mal.Class
         , Mal.Error
         , Mal.Types
+        , Mal.PrettyPrinter
         , Mal.Internal.Builtin
         , Mal.Internal.Environment
         , Mal.Internal.Interpreter
@@ -27,6 +28,7 @@ library
         , vector               >= 0.13.0 && < 0.14
         , transformers
         , either
+        , pretty-simple
     hs-source-dirs:   src
     default-extensions: OverloadedStrings, BangPatterns
     default-language: Haskell2010
