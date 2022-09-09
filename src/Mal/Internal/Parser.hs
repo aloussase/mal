@@ -44,7 +44,9 @@ readString = mkMalString <$> label "string" parseString
 readSymbol :: Parser MalType
 readSymbol = label "symbol" $
     mkMalSymbol <$> some (choice
-        [alphaNumChar,  char '-', char '+', char '/', char '*', char '!', char '?'])
+        [ alphaNumChar,  char '-', char '+', char '/', char '*', char '!', char '?'
+        , char '>', char '=', char '&'
+        ])
 
 readBool :: Parser MalType
 readBool = label "bool" (parseTrue <|> parseFalse)

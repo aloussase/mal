@@ -23,3 +23,4 @@ instance Show MalError where
     show (InvalidArgs f args) = "invalid arguments for function " <> f <> ": " <> show args
     show (NotAFunction t) = "tried to call non-function " <> show t
     show (ExpectedArgs s) = "invalid arguments for function " <> s <> ", expected at least 1"
+    show (InvalidSignature s) = "invalid function signature: " <> s

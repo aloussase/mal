@@ -17,7 +17,7 @@ evaluatorSpec = describe "Mal.run" $ do
             runWithScope "(+ 1 2)" `shouldReturn` mkMalNumber 3
             runWithScope "(* 1 2)" `shouldReturn` mkMalNumber 2
             runWithScope "(/ 2 1)" `shouldReturn` mkMalNumber 2
-            runWithScope "(- 2 1)" `shouldReturn` mkMalNumber (-3)
+            runWithScope "(- 2 1)" `shouldReturn` mkMalNumber 1
 
         it "can evalute expressions nested in vectors" $ do
             runWithScope "[(+ 1 2) (* 2 3 (+ 3 2))]" `shouldReturn` mkMalVector [mkMalNumber 3, mkMalNumber 30]
@@ -81,6 +81,28 @@ evaluatorSpec = describe "Mal.run" $ do
 
             it "works with def!" $
                 runWithScope "(do (def! add (fn* (x y) (+ x y))) (add 2 3))" `shouldReturn` mkMalNumber 5
+
+            it "recursive functions work" $ do
+                runWithScope "(do (def! sumdown (fn* (N) (if (> N 0) (+ N (sumdown  (- N 1))) 0))) (sumdown 6))"
+                    `shouldReturn`
+                    mkMalNumber 21
+                runWithScope "(do (def! fib (fn* (N) (if (= N 0) 1 (if (= N 1) 1 (+ (fib (- N 1)) (fib (- N 2))))))) (fib 4))"
+                    `shouldReturn`
+                    mkMalNumber 5
+
+            it "recursive function in environment works" $ do
+                runWithScope "(let* (f (fn* () x) x 3) (f))" `shouldReturn` mkMalNumber 3
+                runWithScope "(let* (f (fn* (n) (if (= n 0) 0 (g (- n 1)))) g (fn* (n) (f n))) (f 2))"
+                    `shouldReturn` mkMalNumber 0
+
+            it "works with rest params" $ do
+                runWithScope "( (fn* (& more) (count more)) 1 2 3)" `shouldReturn` mkMalNumber 3
+                runWithScope "( (fn* (& more) (list? more)) 1 2 3)" `shouldReturn` mkMalBool True
+                runWithScope "( (fn* (& more) (count more)) )" `shouldReturn` mkMalNumber 0
+                runWithScope "( (fn* (& more) (list? more)) )" `shouldReturn` mkMalBool True
+                runWithScope "( (fn* (a & more) (count more)) 1 2 3)" `shouldReturn` mkMalNumber 2
+                runWithScope "( (fn* (a & more) (count more)) 1)" `shouldReturn` mkMalNumber 0
+                runWithScope "( (fn* (a & more) (list? more)) 1)" `shouldReturn` mkMalBool True
 
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do
