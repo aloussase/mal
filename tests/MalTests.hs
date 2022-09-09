@@ -104,6 +104,16 @@ evaluatorSpec = describe "Mal.run" $ do
                 runWithScope "( (fn* (a & more) (count more)) 1)" `shouldReturn` mkMalNumber 0
                 runWithScope "( (fn* (a & more) (list? more)) 1)" `shouldReturn` mkMalBool True
 
+            it "TCO works correctly" $ do
+                runWithScope "(do (def! sum2 (fn* (n acc) (if (= n 0) acc (sum2 (- n 1) (+ n acc))))) (sum2 10000 0) )"
+                    `shouldReturn` mkMalNumber 50005000
+                runWithScope
+                    (mconcat ["(do "
+                             , "(def! foo (fn* (n) (if (= n 0) 0 (bar (- n 1)))))"
+                             , "(def! bar (fn* (n) (if (= n 0) 0 (foo (- n 1)))))"
+                             , "(foo 10000)"
+                             , ")"]) `shouldReturn` mkMalNumber 0
+
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do
     it "can parse atoms" $ do

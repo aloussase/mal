@@ -10,11 +10,11 @@ import           Mal.Internal.Util          (pairs)
 import           Mal.Types
 
 import           Control.Exception          (evaluate, throw, throwIO)
-import           Control.Monad              (forM_)
+import           Control.Monad              (forM_, when)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
-import           Data.IORef                 (IORef, modifyIORef', readIORef,
-                                             writeIORef)
+import           Data.IORef                 (IORef, modifyIORef', newIORef,
+                                             readIORef, writeIORef)
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
@@ -38,8 +38,9 @@ withScope newScope action = do
 evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
 evalIfStmt condition trueBranch falseBranch = do
     result <- eval' condition
-    if isTruthy result then eval' trueBranch
-    else eval' (fromMaybe mkMalNil falseBranch)
+    currentScope <- asks scope
+    if isTruthy result then liftIO $ eval currentScope trueBranch
+    else liftIO $ eval currentScope (fromMaybe mkMalNil falseBranch)
 
 evalAst :: MalType -> Interpreter
 evalAst (MalAtom (MalSymbol s)) = do
@@ -67,13 +68,23 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList binding
     currentScope <- asks scope >>= liftIO . readIORef
     withScope (Env.empty { scopeParent = Just currentScope }) $ do
         letScope <- asks scope
+
         forM_ (pairs bindings) $ \(MalAtom (MalSymbol k), v) -> do
             evaledValue <- eval' v
             liftIO $ modifyIORef' letScope (Env.insert k evaledValue)
-        foldr1 (>>) $ map eval' body
+
+        -- This let's us do TCO. The alternative would be to do
+        -- >>> eval' body
+        liftIO $ eval letScope (mkMalList $ mkMalSymbol "do" :body)
 
 -- Do special form
-eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) = foldr1 (>>) $ map eval' body
+eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) =
+    if null body then pure mkMalNil
+    else do
+        -- I have to do @eval'@ here because evalAst does not recognize special forms.
+        mapM_ eval' (init body)
+        currentScope <- asks scope
+        liftIO $ eval currentScope (last body)
 
 -- If expression
 eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) =
@@ -89,11 +100,12 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params)
             currentScope <- asks scope >>= liftIO . readIORef
             let newScope = Env.empty { scopeParent = Just currentScope
                                      , scopeBindings = M.fromList $ mkFnBindings params args}
-
             -- Eval the function body in the new environment.
             withScope newScope (eval' body)
 
-    pure $ mkMalFunction "lambda" closure
+    currentScope <- asks scope
+    let (MalFunction function) = mkMalFunction "lambda" closure
+    pure $ mkMalTailRecFunction body params currentScope function
 
 eval' xs@(MalList (MkMalList (_:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
@@ -113,7 +125,10 @@ mkFnBindings =  go []
 -- environment.
 eval :: IORef MalScope -> MalType -> IO MalType
 eval initialScope ast =  do
-    modifyIORef' initialScope (\s -> s { scopeParent = Just interpreterBuiltins })
+    env <- readIORef initialScope
+    when (env == Env.empty) $
+        modifyIORef' initialScope (\s -> s { scopeParent = Just interpreterBuiltins })
+    -- TODO: The MalEnv does not need a reference to the builtins.
     runReaderT (eval' ast) (MkMalEnv interpreterBuiltins initialScope)
     where
         interpreterBuiltins = Env.fromList
@@ -135,7 +150,21 @@ eval initialScope ast =  do
             , ("println", mkMalFunction "println" B.println)
             ]
 
+-- | 'evalCall' evaluates a function call.
+--
+-- If it is a normal function, we just call it with the provided arguments.
+--
+-- Otherwise, if it is a tail recursive function we bind the function arguments in the
+-- stored environment at the time of closure creation and evaluate its body using that
+-- environment.
+--
+-- For anything else, throw an error.
+--
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func):ys))) = func ys
+evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func):args))) = func args
+evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body params env _func):args))) = do
+    newEnv <- liftIO $ flip MkMalScope (M.fromList $ mkFnBindings params args) . Just <$> readIORef env
+    liftIO $ newIORef newEnv >>= flip eval body
+
 evalCall (MalList (MkMalList (x:_))) = liftIO $ throwIO (NotAFunction x)
 evalCall _ = undefined

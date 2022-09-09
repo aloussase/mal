@@ -11,12 +11,14 @@ module Mal.Types (
     , MalMap (..)
     , MalType (..)
     , MalVec (..)
+    , MalTailRecFunction (..)
     -- * Env things
     , MalEnv (..)
     , MalScope (..)
     -- * Smart constructors
     , mkMalBool
     , mkMalFunction
+    , mkMalTailRecFunction
     , mkMalList
     , mkMalMap
     , mkMalNil
@@ -71,6 +73,18 @@ instance Eq MalFunction where
 instance Ord MalFunction where
     MkMalFunction { fName = a } `compare` MkMalFunction { fName = b } = a `compare` b
 
+-- | A tail recursive function.
+data MalTailRecFunction = MkMalTailRecFunction
+    { tailRecBody     :: MalType        -- ^ The function's body
+    , tailRecParams   :: [MalType]      -- ^ The function's parameter list
+    , tailRecEnv      :: IORef MalScope -- ^ A reference to the interpreter scope at the time of function creation
+    , tailRecFunction :: MalFunction    -- ^ No idea LOL
+    }
+    deriving (Eq)
+
+instance Ord MalTailRecFunction where
+    compare x y = compare (tailRecFunction x) (tailRecFunction y)
+
 -- | Mal atoms.
 data MalAtom =
         MalSymbol String
@@ -87,6 +101,7 @@ data MalType =
         | MalVec MalVec
         | MalMap MalMap
         | MalFunction MalFunction
+        | MalTailRecFunction MalTailRecFunction
     deriving (Eq, Ord)
 
 -- Env things
@@ -102,13 +117,17 @@ data MalScope = MkMalScope
     { scopeParent   :: Maybe MalScope
     , scopeBindings :: Map String MalType
     }
-    deriving Show
+    deriving (Show, Eq, Ord)
 
 -- Smart constructors
 
 -- | Make a 'MalFunction' from the provided function name and closure.
 mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
 mkMalFunction name body = MalFunction $ MkMalFunction { fName = name, fBody = body }
+
+mkMalTailRecFunction:: MalType -> [MalType] -> IORef MalScope -> MalFunction -> MalType
+mkMalTailRecFunction body params env function =
+    MalTailRecFunction $ MkMalTailRecFunction body params env function
 
 -- | Make a Mal string from the provided @String@.
 mkMalSymbol :: String -> MalType
@@ -157,3 +176,8 @@ instance Show MalType where
     show (MalVec vs)     = showListLike "[" "]" vs
     show (MalMap m)      = showListLike "{" "}" m
     show (MalFunction f) = show f
+    show (MalTailRecFunction (MkMalTailRecFunction body params _ _)) =
+        mconcat [ "<fn: "
+                , show params, "\n"
+                , show body,   "\n>"
+                ]
