@@ -94,3 +94,43 @@ isEmpty _                        = liftMalType False
 count :: Function
 count [MalList (MkMalList xs)] = liftMalType . length $ xs
 count xs                       = liftIO $ throwIO (InvalidArgs "count" xs)
+
+-- Logic functions
+
+compareNumbers :: String -> (Int -> Int -> Bool) -> Function
+compareNumbers _ cmp [MalAtom (MalNumber x), MalAtom (MalNumber y)] = liftMalType $ cmp x y
+compareNumbers funcName _ xs  = liftIO $ throwIO (InvalidArgs funcName xs)
+
+-- | 'eq' returns true if the provided arguments are equal.
+eq :: Function
+eq = compareNumbers "=" (==)
+
+-- | 'lessThan' return true if the first argument is less than the second one.
+--
+-- >>> (< 1 2)
+-- #t
+lessThan :: Function
+lessThan = compareNumbers "<" (<)
+
+-- | 'lessThanEq' return true if the first argument is less than or equal to the
+-- second one.
+lessThanEq :: Function
+lessThanEq = compareNumbers "<=" (<=)
+
+-- | 'greaterThan' return true if the first argument is greater than the second one.
+greaterThan :: Function
+greaterThan = compareNumbers ">" (>)
+
+-- | 'greaterThanEq' return true if the first argument is greater than or equal to the
+-- second one.
+greaterThanEq :: Function
+greaterThanEq = compareNumbers ">=" (>=)
+
+-- IO Functions
+
+-- | 'prn' prints the provided argument.
+prn :: Function
+prn [o] = do
+    liftIO $ print o
+    pure mkMalNil
+prn xs = liftIO $ throwIO (InvalidArgs "prn" xs)
