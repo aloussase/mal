@@ -61,15 +61,15 @@ showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, en
 
 -- | A function in Mal consists of the function's name and a closure.
 data MalFunction = MkMalFunction
-    { name :: String
-    , body :: [MalType] -> ReaderT MalEnv IO MalType
+    { fName :: String
+    , fBody :: [MalType] -> ReaderT MalEnv IO MalType
     }
 
-instance Show MalFunction where show f = mconcat ["<fn: ", name f, ">"]
+instance Show MalFunction where show f = mconcat ["<fn: ", fName f, ">"]
 instance Eq MalFunction where
-    MkMalFunction { name = a } == MkMalFunction { name = b } = a == b
+    MkMalFunction { fName = a } == MkMalFunction { fName = b } = a == b
 instance Ord MalFunction where
-    MkMalFunction { name = a } `compare` MkMalFunction { name = b } = a `compare` b
+    MkMalFunction { fName = a } `compare` MkMalFunction { fName = b } = a `compare` b
 
 -- | Mal atoms.
 data MalAtom =
@@ -99,8 +99,8 @@ data MalEnv = MkMalEnv
 
 -- | A scope where bindings run happily in the meadows.
 data MalScope = MkMalScope
-    { parent   :: Maybe MalScope
-    , bindings :: Map String MalType
+    { scopeParent   :: Maybe MalScope
+    , scopeBindings :: Map String MalType
     }
     deriving Show
 
@@ -108,7 +108,7 @@ data MalScope = MkMalScope
 
 -- | Make a 'MalFunction' from the provided function name and closure.
 mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
-mkMalFunction name body = MalFunction $ MkMalFunction { name = name, body = body }
+mkMalFunction name body = MalFunction $ MkMalFunction { fName = name, fBody = body }
 
 -- | Make a Mal string from the provided @String@.
 mkMalSymbol :: String -> MalType

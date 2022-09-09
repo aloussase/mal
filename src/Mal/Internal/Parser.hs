@@ -77,11 +77,8 @@ readAtom = label "atom" $ choice
     ]
 
 readComment :: Parser MalType
-readComment = label "comment" $ do
-    -- TODO: throw an error to signal a comment.
-    symbol ";"
-    anySingle `manyTill` (void newline <|> eof)
-    pure mkMalNil
+readComment = label "comment" $
+    symbol ";" >> anySingle `manyTill` (void newline <|> eof) >> pure mkMalNil
 
 readForm :: Parser MalType
 readForm = label "valid mal expression" $ lexeme

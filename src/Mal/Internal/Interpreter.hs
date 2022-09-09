@@ -3,21 +3,18 @@
 
 module Mal.Internal.Interpreter (eval) where
 
-import           Mal.Class
 import           Mal.Error
 import qualified Mal.Internal.Builtin       as B
 import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Util          (pairs)
 import           Mal.Types
 
-import           Control.Exception          (catch, evaluate, throw, throwIO)
-import           Control.Monad              (forM, forM_, liftM)
+import           Control.Exception          (evaluate, throw, throwIO)
+import           Control.Monad              (forM_)
 import           Control.Monad.IO.Class     (liftIO)
-import           Control.Monad.Trans.Reader (ReaderT, ask, asks, runReaderT)
-import           Data.Either.Combinators    (maybeToRight)
-import           Data.IORef                 (IORef, modifyIORef', newIORef,
-                                             readIORef, writeIORef)
-import           Data.Map                   (Map, (!?))
+import           Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
+import           Data.IORef                 (IORef, modifyIORef', readIORef,
+                                             writeIORef)
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
@@ -45,7 +42,7 @@ evalIfStmt condition trueBranch falseBranch = do
     else eval' (fromMaybe mkMalNil falseBranch)
 
 evalAst :: MalType -> Interpreter
-evalAst sym@(MalAtom (MalSymbol s)) = do
+evalAst (MalAtom (MalSymbol s)) = do
     env <- asks scope >>= liftIO . readIORef
     liftIO $ evaluate (Env.find env s)
 
@@ -68,7 +65,7 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name),
 -- let special form
 eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body))) = do
     currentScope <- asks scope >>= liftIO . readIORef
-    withScope (Env.empty { parent = Just currentScope }) $ do
+    withScope (Env.empty { scopeParent = Just currentScope }) $ do
         letScope <- asks scope
         forM_ (pairs bindings) $ \(MalAtom (MalSymbol k), v) -> do
             evaledValue <- eval' v
@@ -90,15 +87,15 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params)
         closure args = do
             -- Create a new environment from the outer scope and bind the function arguments in it.
             currentScope <- asks scope >>= liftIO . readIORef
-            let newScope = Env.empty { parent = Just currentScope
-                                     , bindings = M.fromList $ mkFnBindings params args}
+            let newScope = Env.empty { scopeParent = Just currentScope
+                                     , scopeBindings = M.fromList $ mkFnBindings params args}
 
             -- Eval the function body in the new environment.
             withScope newScope (eval' body)
 
     pure $ mkMalFunction "lambda" closure
 
-eval' xs@(MalList (MkMalList (x:_))) = evalAst xs >>= evalCall
+eval' xs@(MalList (MkMalList (_:_))) = evalAst xs >>= evalCall
 eval' ast                            = evalAst ast
 
 -- | Bind a list of function names to the corresponding arguments.
@@ -115,11 +112,11 @@ mkFnBindings =  go []
 -- | 'eval' evaluates the provided 'MalType', using @scope@ as the initial
 -- environment.
 eval :: IORef MalScope -> MalType -> IO MalType
-eval scope ast =  do
-    modifyIORef' scope (\s -> s { parent = Just builtins })
-    runReaderT (eval' ast) (MkMalEnv builtins scope)
+eval initialScope ast =  do
+    modifyIORef' initialScope (\s -> s { scopeParent = Just interpreterBuiltins })
+    runReaderT (eval' ast) (MkMalEnv interpreterBuiltins initialScope)
     where
-        builtins = Env.fromList
+        interpreterBuiltins = Env.fromList
             [ ("+", mkMalFunction "+" B.plus)
             , ("-", mkMalFunction "-" B.sub)
             , ("/", mkMalFunction "/" B.quot)
@@ -139,6 +136,6 @@ eval scope ast =  do
             ]
 
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction (MkMalFunction name func):ys))) = func ys
+evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func):ys))) = func ys
 evalCall (MalList (MkMalList (x:_))) = liftIO $ throwIO (NotAFunction x)
 evalCall _ = undefined

@@ -19,4 +19,5 @@ unquote :: T.Text -> T.Text
 unquote s@"\"" = s
 unquote s      = T.filter (/= '\"') s
 
+unquoteString :: String -> String
 unquoteString = T.unpack . unquote . T.pack

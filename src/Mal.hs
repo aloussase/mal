@@ -30,6 +30,7 @@ import           Mal.Internal.Parser      (parse)
 import           Mal.PrettyPrinter
 import           Mal.Types
 
+import           Control.Monad            (void)
 import           Data.IORef               (IORef, newIORef)
 
 -- | 'emptyScope' returns a new empty 'MalScope' wrapped in an @IORef@.
@@ -38,6 +39,6 @@ emptyScope =  newIORef Env.empty
 
 -- | Execute the provided Mal program, using @scope@ as the initial interpreter state.
 run :: IORef MalScope -> String -> IO MalType
-run scope ast = do
-    eval scope (parse "(def! not (fn* (a) (if a false true)))")
-    eval scope (parse ast)
+run initialScope ast = do
+    void $ eval initialScope (parse "(def! not (fn* (a) (if a false true)))")
+    eval initialScope (parse ast)

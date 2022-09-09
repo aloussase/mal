@@ -33,12 +33,10 @@ import           Mal.Types
 import           Prelude                    hiding (quot)
 
 import           Control.Exception          (throw, throwIO)
-import           Control.Monad              (forM_)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.Function              ((&))
-import           Data.List                  (foldl', foldl1', foldr)
-import qualified Data.Text.Lazy             as T
+import           Data.List                  (foldl', foldl1')
 import qualified Data.Text.Lazy.IO          as TIO
 
 
