@@ -26,9 +26,7 @@ program = MkProgramOptions <$> (fileInput <|> replInput)
 read' :: IO String
 read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLine
     where
-        returnLine line = do
-            R.addHistory line
-            pure line
+        returnLine line = R.addHistory line >> pure line
 
 eval :: IORef Mal.MalScope -> String -> IO Mal.MalType
 eval = Mal.run

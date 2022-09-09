@@ -36,4 +36,6 @@ emptyScope =  newIORef Env.empty
 
 -- | Execute the provided Mal program, using @scope@ as the initial interpreter state.
 run :: IORef MalScope -> String -> IO MalType
-run scope = eval scope . parse
+run scope ast = do
+    eval scope (parse "(def! not (fn* (a) (if a false true)))")
+    eval scope (parse ast)

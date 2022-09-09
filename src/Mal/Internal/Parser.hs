@@ -45,7 +45,7 @@ readSymbol :: Parser MalType
 readSymbol = label "symbol" $
     mkMalSymbol <$> some (choice
         [ alphaNumChar,  char '-', char '+', char '/', char '*', char '!', char '?'
-        , char '>', char '=', char '&'
+        , char '>', char '=', char '&', char '<', char '='
         ])
 
 readBool :: Parser MalType
