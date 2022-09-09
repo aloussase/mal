@@ -1,3 +1,4 @@
+{-| Parses a Mal program into an AST suitable for evaluation. -}
 module Mal.Internal.Parser (parse) where
 
 import           Mal.Error
@@ -83,6 +84,7 @@ readForm :: Parser MalType
 readForm = label "valid mal expression" $ lexeme
     (choice [readComment, readList, readAtom, readVector, readMap])
 
+-- | 'parse' parses the provided Mal program as a @String@ and returns the resulting AST.
 parse :: String -> MalType
 parse input =
     case runParser (space >> readForm <* eof) "<repl>" (T.pack input) of

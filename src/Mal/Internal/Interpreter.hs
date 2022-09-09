@@ -1,3 +1,4 @@
+{-| A tree-walk interpreter for Mal programs. -}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Mal.Internal.Interpreter (eval) where

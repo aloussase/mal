@@ -1,4 +1,30 @@
-module Mal.Types where
+{-|
+ Types representing the ast and environment of Mal.
+ -}
+module Mal.Types (
+    -- * Type class for types that can convert to @MalType@
+      MalListLike (..)
+    -- * Mal data types
+    , MalAtom (..)
+    , MalFunction (..)
+    , MalList (..)
+    , MalMap (..)
+    , MalType (..)
+    , MalVec (..)
+    -- * Env things
+    , MalEnv (..)
+    , MalScope (..)
+    -- * Smart constructors
+    , mkMalBool
+    , mkMalFunction
+    , mkMalList
+    , mkMalMap
+    , mkMalNil
+    , mkMalNumber
+    , mkMalString
+    , mkMalSymbol
+    , mkMalVector
+) where
 
 import           Mal.Internal.Util          (pairs)
 
@@ -9,13 +35,21 @@ import qualified Data.Map                   as M
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 
-newtype MalVec = MkMalVec (Vector MalType) deriving (Show, Eq, Ord)
-newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
-newtype MalMap = MkMalMap (Map MalType MalType) deriving (Show, Eq, Ord)
+
+-- Type class for types that can convert to @MalType@
 
 -- | A class for @MalType@s that can naturally convert to lists.
 class MalListLike a where
     toList :: a -> [MalType]
+
+-- Mal data types
+
+-- | The vector data type in Mal.
+newtype MalVec = MkMalVec (Vector MalType) deriving (Show, Eq, Ord)
+-- | The workhorse data type in Mal.
+newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
+-- | The hash-map data type in Mal.
+newtype MalMap = MkMalMap (Map MalType MalType) deriving (Show, Eq, Ord)
 
 instance MalListLike MalVec where toList (MkMalVec vs) = V.toList vs
 instance MalListLike MalList where toList (MkMalList xs) = xs
@@ -25,24 +59,11 @@ instance MalListLike MalMap where
 showListLike :: (MalListLike a) => String -> String -> a -> String
 showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, end]
 
-data MalEnv = MkMalEnv
-    { builtins :: MalScope
-    , scope    :: IORef MalScope
-    }
-
-data MalScope = MkMalScope
-    { parent   :: Maybe MalScope
-    , bindings :: Map String MalType
-    }
-    deriving Show
-
+-- | A function in Mal consists of the function's name and a closure.
 data MalFunction = MkMalFunction
     { name :: String
     , body :: [MalType] -> ReaderT MalEnv IO MalType
     }
-
-mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
-mkMalFunction name body = MalFunction $ MkMalFunction { name = name, body = body }
 
 instance Show MalFunction where show f = mconcat ["<fn: ", name f, ">"]
 instance Eq MalFunction where
@@ -50,6 +71,7 @@ instance Eq MalFunction where
 instance Ord MalFunction where
     MkMalFunction { name = a } `compare` MkMalFunction { name = b } = a `compare` b
 
+-- | Mal atoms.
 data MalAtom =
         MalSymbol String
         | MalNumber Int
@@ -58,6 +80,7 @@ data MalAtom =
         | MalNil
     deriving (Eq, Ord)
 
+-- | A data type in the Mal language.
 data MalType =
         MalAtom MalAtom
         | MalList MalList
@@ -66,33 +89,57 @@ data MalType =
         | MalFunction MalFunction
     deriving (Eq, Ord)
 
--- | Smart constructor for making Mal Symbol.
+-- Env things
+
+-- | The environment for the interpreter.
+data MalEnv = MkMalEnv
+    { builtins :: MalScope
+    , scope    :: IORef MalScope
+    }
+
+-- | A scope where bindings run happily in the meadows.
+data MalScope = MkMalScope
+    { parent   :: Maybe MalScope
+    , bindings :: Map String MalType
+    }
+    deriving Show
+
+-- Smart constructors
+
+-- | Make a 'MalFunction' from the provided function name and closure.
+mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
+mkMalFunction name body = MalFunction $ MkMalFunction { name = name, body = body }
+
+-- | Make a Mal string from the provided @String@.
 mkMalSymbol :: String -> MalType
 mkMalSymbol = MalAtom . MalSymbol
 
--- | Smart constructor for making Mal String.
+-- | Make a Mal symbol from the provided @String@.
 mkMalString :: String -> MalType
 mkMalString = MalAtom . MalString
 
--- | Smart constructor for making Mal Number.
+-- | Make a Mal number from the provided @Int@.
 mkMalNumber :: Int -> MalType
 mkMalNumber = MalAtom . MalNumber
 
--- | Smart constructor for making Mal Bool.
+-- | Make a Mal bool from the provided @Bool@.
 mkMalBool :: Bool -> MalType
 mkMalBool = MalAtom . MalBool
 
--- | Smart constructor for making Mal Nil.
+-- | Make Mal nil.
 mkMalNil ::MalType
 mkMalNil = MalAtom MalNil
 
--- | Smart constructor for making @MalList@s.
+-- | Make a Mal list from the provided list of 'MalType'.
 mkMalList :: [MalType] -> MalType
 mkMalList = MalList . MkMalList
 
+-- | Make a Mal list from the provided list of 'MalType'.
 mkMalVector :: [MalType] -> MalType
 mkMalVector = MalVec . MkMalVec . V.fromList
 
+-- | Make a Mal list from the provided list of 'MalType'.
+-- Each pair of successive elements is a key-value pair in the resulting map.
 mkMalMap :: [MalType] -> MalType
 mkMalMap = MalMap . MkMalMap . M.fromList . pairs
 

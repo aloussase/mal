@@ -1,3 +1,4 @@
+{-| Classes useful for using mal as an API. -}
 {-# LANGUAGE FlexibleInstances #-}
 
 module Mal.Class where
@@ -5,7 +6,7 @@ module Mal.Class where
 import           Control.Monad.Trans.Reader (ReaderT)
 import           Mal.Types
 
-
+-- | Convert the provided value to a 'MalType' and lift it into the proper @Monad@.
 liftMalType :: (IsMalType a, Monad m) => a -> m MalType
 liftMalType = pure . asMalType
 

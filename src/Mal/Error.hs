@@ -1,15 +1,18 @@
+{-| Defines errors that can occur during a Mal program execution. -}
 module Mal.Error where
 
 import           Mal.Types
 
 import           Control.Exception
 
+-- | The different errors that can occur during a Mal program execution.
 data MalError =
         ParseError String
         | UnboundSymbol String
         | InvalidArgs String [MalType]
         | ExpectedArgs String
         | NotAFunction MalType
+        | InvalidSignature String
     deriving (Eq)
 
 instance Exception MalError
