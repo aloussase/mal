@@ -7,11 +7,11 @@ import           Control.Exception
 
 -- | The different errors that can occur during a Mal program execution.
 data MalError =
-        ParseError String
-        | UnboundSymbol String
-        | InvalidArgs String [MalType]
-        | NotAFunction MalType
-        | InvalidSignature String
+        ParseError String               -- ^ A parser error.
+        | UnboundSymbol String          -- ^ Signaled when the interpreter tries to resolve an unbound symbol.
+        | InvalidArgs String [MalType]  -- ^ Signaled when a function receives invalid arguments.
+        | NotAFunction MalType          -- ^ Signaled when the interpreter tries to call a non-functions.
+        | InvalidSignature String       -- ^ Signaled when a function is defined with an invalid function.
     deriving (Eq)
 
 instance Exception MalError

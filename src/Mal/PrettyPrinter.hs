@@ -1,5 +1,5 @@
-{-# LANGUAGE TypeApplications #-}
 {-| Contains a routine to print 'MalType's readably. -}
+{-# LANGUAGE TypeApplications #-}
 module Mal.PrettyPrinter where
 
 import           Mal.Error
