@@ -44,23 +44,23 @@ import qualified Data.Text.Lazy.IO          as TIO
 type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
 
 builtins :: MalScope
-builtins = Env.fromList
-    [ ("+", mkMalFunction "+" plus)
-    , ("-", mkMalFunction "-" sub)
-    , ("/", mkMalFunction "/" quot)
-    , ("*", mkMalFunction "*" mult)
-    , ("list", mkMalFunction "list" list)
-    , ("list?", mkMalFunction "list?" isList)
-    , ("empty?", mkMalFunction "empty?" isEmpty)
-    , ("count", mkMalFunction "count" count)
-    , ("=", mkMalFunction "=" eq)
-    , ("<", mkMalFunction "<" lessThan)
-    , ("<=", mkMalFunction "<=" lessThanEq)
-    , (">", mkMalFunction ">" greaterThan)
-    , (">=", mkMalFunction ">=" greaterThanEq)
-    , ("prn", mkMalFunction "prn" prn)
-    , ("str", mkMalFunction "str" str)
-    , ("println", mkMalFunction "println" println)
+builtins = Env.fromList $ map (\(sym, fn) -> (sym, mkMalFunction sym fn))
+    [ ("+",       plus)
+    , ("-",       sub)
+    , ("/",       quot)
+    , ("*",       mult)
+    , ("list",    list)
+    , ("list?",   isList)
+    , ("empty?",  isEmpty)
+    , ("count",   count)
+    , ("=",       eq)
+    , ("<",       lessThan)
+    , ("<=",      lessThanEq)
+    , (">",       greaterThan)
+    , (">=",      greaterThanEq)
+    , ("prn",     prn)
+    , ("str",     str)
+    , ("println", println)
     ]
 
 -- Arithmetic functions
