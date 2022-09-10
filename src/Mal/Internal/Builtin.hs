@@ -28,7 +28,6 @@ module Mal.Internal.Builtin (
 import           Mal.Class
 import           Mal.Error
 import qualified Mal.Internal.Environment   as Env
-import           Mal.Internal.Util          (unquoteString)
 import           Mal.PrettyPrinter
 import           Mal.Types
 
@@ -37,9 +36,8 @@ import           Prelude                    hiding (quot)
 import           Control.Exception          (throw, throwIO)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT)
-import           Data.Function              ((&))
 import           Data.List                  (foldl', foldl1')
-import qualified Data.Text.Lazy.IO          as TIO
+import qualified Data.Text.Lazy             as T
 
 type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
 
@@ -157,12 +155,9 @@ greaterThanEq = compareNumbers ">=" (>=)
 
 -- | 'prn' prints the provided argument.
 prn :: BuiltinFunction
-prn xs = xs
-    & liftIO . TIO.putStrLn
-    . mconcat
-    . init
-    . foldl' (\acc x -> acc ++ [showReadably x, " "]) []
-    >> pure mkMalNil
+prn xs = do
+    liftIO . print . init . foldl' (\acc x -> acc <> T.unpack (showReadably False x <> " ")) "" $ xs
+    pure mkMalNil
 
 -- | 'println' prints the given arguments as formated by 'str'.
 println :: BuiltinFunction
@@ -174,4 +169,4 @@ str :: BuiltinFunction
 str = pure
     . mkMalString
     . init
-    . foldl' (\acc x -> mconcat [acc, unquoteString (show x), " "]) ""
+    . foldl' (\acc x -> acc <> T.unpack (showReadably False x <> " ")) ""

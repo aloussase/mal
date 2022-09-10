@@ -1,45 +1,75 @@
 {-| Contains a routine to print 'MalType's readably. -}
-{-# LANGUAGE TypeApplications #-}
 module Mal.PrettyPrinter where
 
 import           Mal.Error
-import           Mal.Internal.Util  (unquote)
 import           Mal.Types
 
-import qualified Data.Text.IO       as TIO
-import           Data.Text.Lazy     (Text, toStrict)
+import qualified Data.Text          as T
+import           Data.Text.Lazy     (Text)
+import qualified Data.Text.Lazy.IO  as TIO
 import           Text.Pretty.Simple
-
--- | 'generalOutputOptions' are options for general pretty printing (no literal printing).
-generalOutputOptions :: OutputOptions
-generalOutputOptions = defaultOutputOptionsDarkBg
-    { outputOptionsCompactParens = True
-    }
-
--- | 'pPrintOutputOptions' are 'generalOutputOptions' with literal string style.
-pPrintOutputOptions :: OutputOptions
-pPrintOutputOptions = generalOutputOptions { outputOptionsStringStyle = Literal }
 
 -- | 'showReadably' returns the pretty printed representation of the provided @MalType@
 -- as @Text@.
-showReadably :: MalType -> Text
-showReadably = pShowOpt pPrintOutputOptions
+showReadably :: Bool -> MalType -> Text
+showReadably True  = pStringOpt defaultOutputOptionsDarkBg
+                                    { outputOptionsCompactParens = True
+                                    , outputOptionsStringStyle = Literal
+                                    }
+                   . unquoteString
+                   . unescapeString
+                   . show
+showReadably False = pStringOpt  defaultOutputOptionsNoColor { outputOptionsStringStyle = Literal }
+                   . unquoteString
+                   . unescapeString
+                   . show
 
 -- | Print the provided 'MalType' as formatted by 'showReadably'.
-printReadably :: MalType -> IO ()
-printReadably = pPrintOpt CheckColorTty pPrintOutputOptions
+printReadably :: Bool -> MalType -> IO ()
+printReadably b t = TIO.putStrLn (showReadably b t)
 
--- | Options for printing error messages.
-errorMsgOptions :: OutputOptions
-errorMsgOptions = generalOutputOptions
-    { outputOptionsColorOptions =
-        Just defaultColorOptionsDarkBg
-            { colorString = colorNull { styleColor = Just (Red, Vivid) }
-            }
-    }
+printStringReadably :: String -> IO ()
+printStringReadably = print
+                    . unquoteString
+                    . unescapeString
+                    . show
 
 -- | 'printError' pretty prints error messages.
 printError :: MalError -> IO ()
 printError err = do
-    TIO.putStr . unquote . toStrict . pShowOpt @String errorMsgOptions $ "error: "
-    pPrintOpt CheckColorTty generalOutputOptions err
+    pPrintStringOpt CheckColorTty
+        defaultOutputOptionsDarkBg
+            { outputOptionsCompactParens = True
+            , outputOptionsStringStyle = Literal
+            , outputOptionsColorOptions =
+                Just defaultColorOptionsDarkBg
+                    { colorString = colorNull { styleColor = Just (Red, Vivid) }
+                    }
+            } "error: "
+
+    pPrintOpt
+        CheckColorTty
+        defaultOutputOptionsDarkBg
+            { outputOptionsCompactParens = True
+            , outputOptionsStringStyle = Literal
+            }
+        err
+
+-- | Unescape a @String@, replacing escape characters by the '\' + c character.
+unescapeString :: String -> String
+unescapeString = go []
+    where
+        go :: String -> String -> String
+        go acc ('\\':'n':xs) = go (acc ++ "\\n") xs
+        go acc (x:xs)        = go (acc ++ [x]) xs
+        go acc []            = acc
+
+-- | 'unquouteString' removes all '"' characters from a string, unless the string
+-- is "\"".
+unquote :: T.Text -> T.Text
+unquote s@"\"" = s
+unquote s      = T.filter (/= '\"') s
+
+-- | Same as 'unquoteString' buy for @String@s instead of @Text@.
+unquoteString :: String -> String
+unquoteString = T.unpack . unquote . T.pack

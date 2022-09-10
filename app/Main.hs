@@ -32,7 +32,7 @@ eval :: IORef Mal.MalScope -> String -> IO Mal.MalType
 eval = Mal.run
 
 print' :: Mal.MalType -> IO ()
-print' = Mal.printReadably
+print' = Mal.printReadably True
 
 main :: IO ()
 main = do
