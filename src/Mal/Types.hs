@@ -107,9 +107,8 @@ data MalType =
 -- Env things
 
 -- | The environment for the interpreter.
-data MalEnv = MkMalEnv
-    { builtins :: MalScope
-    , scope    :: IORef MalScope
+newtype MalEnv = MkMalEnv
+    { scope :: IORef MalScope
     }
 
 -- | A scope where bindings run happily in the meadows.

@@ -2,8 +2,9 @@
  The builtin functions of the Mal programming language.
  -}
 module Mal.Internal.Builtin (
+    builtins
     -- * Arithmetic functions
-      plus
+    , plus
     , sub
     , mult
     , quot
@@ -26,6 +27,7 @@ module Mal.Internal.Builtin (
 
 import           Mal.Class
 import           Mal.Error
+import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Util          (unquoteString)
 import           Mal.PrettyPrinter
 import           Mal.Types
@@ -39,8 +41,27 @@ import           Data.Function              ((&))
 import           Data.List                  (foldl', foldl1')
 import qualified Data.Text.Lazy.IO          as TIO
 
-
 type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
+
+builtins :: MalScope
+builtins = Env.fromList
+    [ ("+", mkMalFunction "+" plus)
+    , ("-", mkMalFunction "-" sub)
+    , ("/", mkMalFunction "/" quot)
+    , ("*", mkMalFunction "*" mult)
+    , ("list", mkMalFunction "list" list)
+    , ("list?", mkMalFunction "list?" isList)
+    , ("empty?", mkMalFunction "empty?" isEmpty)
+    , ("count", mkMalFunction "count" count)
+    , ("=", mkMalFunction "=" eq)
+    , ("<", mkMalFunction "<" lessThan)
+    , ("<=", mkMalFunction "<=" lessThanEq)
+    , (">", mkMalFunction ">" greaterThan)
+    , (">=", mkMalFunction ">=" greaterThanEq)
+    , ("prn", mkMalFunction "prn" prn)
+    , ("str", mkMalFunction "str" str)
+    , ("println", mkMalFunction "println" println)
+    ]
 
 -- Arithmetic functions
 reduceMalNumbers :: String -> (Int -> Int -> Int) -> [MalType] -> ReaderT MalEnv IO MalType

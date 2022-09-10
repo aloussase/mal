@@ -127,28 +127,8 @@ eval :: IORef MalScope -> MalType -> IO MalType
 eval initialScope ast =  do
     env <- readIORef initialScope
     when (env == Env.empty) $
-        modifyIORef' initialScope (\s -> s { scopeParent = Just interpreterBuiltins })
-    -- TODO: The MalEnv does not need a reference to the builtins.
-    runReaderT (eval' ast) (MkMalEnv interpreterBuiltins initialScope)
-    where
-        interpreterBuiltins = Env.fromList
-            [ ("+", mkMalFunction "+" B.plus)
-            , ("-", mkMalFunction "-" B.sub)
-            , ("/", mkMalFunction "/" B.quot)
-            , ("*", mkMalFunction "*" B.mult)
-            , ("list", mkMalFunction "list" B.list)
-            , ("list?", mkMalFunction "list?" B.isList)
-            , ("empty?", mkMalFunction "empty?" B.isEmpty)
-            , ("count", mkMalFunction "count" B.count)
-            , ("=", mkMalFunction "=" B.eq)
-            , ("<", mkMalFunction "<" B.lessThan)
-            , ("<=", mkMalFunction "<=" B.lessThanEq)
-            , (">", mkMalFunction ">" B.greaterThan)
-            , (">=", mkMalFunction ">=" B.greaterThanEq)
-            , ("prn", mkMalFunction "prn" B.prn)
-            , ("str", mkMalFunction "str" B.str)
-            , ("println", mkMalFunction "println" B.println)
-            ]
+        modifyIORef' initialScope (\s -> s { scopeParent = Just B.builtins })
+    runReaderT (eval' ast) (MkMalEnv initialScope)
 
 -- | 'evalCall' evaluates a function call.
 --
