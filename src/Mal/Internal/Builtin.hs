@@ -33,18 +33,20 @@ module Mal.Internal.Builtin
   )
 where
 
-import           Control.Exception          (throw, throwIO)
-import           Control.Monad.IO.Class     (liftIO)
-import           Control.Monad.Trans.Reader (ReaderT)
-import           Data.List                  (foldl', foldl1')
-import qualified Data.Text                  as T
 import           Mal.Class
 import           Mal.Error
 import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Parser
 import           Mal.PrettyPrinter
 import           Mal.Types
+
 import           Prelude                    hiding (quot)
+
+import           Control.Exception          (throw, throwIO)
+import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.Trans.Reader (ReaderT)
+import           Data.List                  (foldl', foldl1')
+import qualified Data.Text                  as T
 import           System.IO                  (readFile')
 
 type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType

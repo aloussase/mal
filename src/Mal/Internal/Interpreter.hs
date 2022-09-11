@@ -127,8 +127,14 @@ eval :: IORef MalScope -> MalType -> IO MalType
 eval initialScope ast =  do
     env <- readIORef initialScope
     when (env == Env.empty) $
-        modifyIORef' initialScope (\s -> s { scopeParent = Just B.builtins })
+        modifyIORef' initialScope (\s -> s { scopeParent = Just builtins })
     runReaderT (eval' ast) (MkMalEnv initialScope)
+
+    where
+        builtins = Env.insert "eval" (mkMalFunction "eval" builtinEval) B.builtins
+
+        builtinEval [ast'] = asks scope >>= liftIO . flip eval ast'
+        builtinEval xs = liftIO $ throwIO (InvalidArgs "eval" xs $ Just "expected a single argument")
 
 -- | 'evalCall' evaluates a function call.
 --
