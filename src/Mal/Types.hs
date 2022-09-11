@@ -134,7 +134,7 @@ mkMalSymbol = MalAtom . MalSymbol
 
 -- | Make a Mal symbol from the provided @String@.
 mkMalString :: String -> MalType
-mkMalString = MalAtom . MalString
+mkMalString !s = MalAtom . MalString $ s
 
 -- | Make a Mal number from the provided @Int@.
 mkMalNumber :: Int -> MalType
