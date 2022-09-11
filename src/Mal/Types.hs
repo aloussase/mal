@@ -177,6 +177,6 @@ instance Show MalType where
     show (MalFunction f) = show f
     show (MalTailRecFunction (MkMalTailRecFunction body params _ _)) =
         mconcat [ "<fn: "
-                , show params, "\n"
-                , show body,   "\n>"
+                , "args: ", show params, "\n"
+                , "body: ", show body,   "\n>"
                 ]
