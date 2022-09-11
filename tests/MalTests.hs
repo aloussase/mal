@@ -10,6 +10,27 @@ runWithScope s = do
     scope <- Mal.emptyScope
     run scope s
 
+builtinsSpec :: Spec
+builtinsSpec = describe "builtins" $ do
+    context "read-string" $ do
+        it "can parse a string into a Mal type" $
+            runWithScope "(read-string \"(1 2 (3 4) nil)\")"
+            `shouldReturn`
+            mkMalList [mkMalNumber 1, mkMalNumber 2, mkMalList [mkMalNumber 3, mkMalNumber 4], mkMalNil]
+
+        it "ignores comments" $
+            runWithScope "(read-string \"7 ;; comment\")" `shouldReturn` mkMalNumber 7
+
+    context "eval" $ do
+        it "can evaluate simple expressions" $
+            runWithScope "(eval (read-string \"(+ 2 3)\"))" `shouldReturn` mkMalNumber 5
+
+        it "does not use local environments" $
+            runWithScope "(do (def! a 1) (let* (a 2) (eval (read-string \"a\"))) )"
+            `shouldReturn`
+            mkMalNumber 1
+
+
 evaluatorSpec :: Spec
 evaluatorSpec = describe "Mal.run" $ do
     context "arithmetic" $ do
@@ -34,8 +55,8 @@ evaluatorSpec = describe "Mal.run" $ do
             it "shadows existing bindings" $
                 runWithScope "(do (def! x 12) (def! x 10) x)" `shouldReturn` mkMalNumber 10
 
-            it "binds variables at the current scope only" $
-                runWithScope "(do (let* () (def! x 10)) x)" `shouldThrow` anyException
+            it "binds variables at the global scope" $
+                runWithScope "(do (let* () (def! x 10)) x)" `shouldReturn` mkMalNumber 10
 
         context "let*" $ do
             it "can bind simple expressions" $
@@ -153,4 +174,4 @@ parserSpec = describe "Mal.parse" $ do
         evaluate (parse "\"Hello") `shouldThrow` anyException
 
 main :: IO ()
-main = hspec  $ parserSpec >> evaluatorSpec
+main = hspec  $ parserSpec >> evaluatorSpec >> builtinsSpec

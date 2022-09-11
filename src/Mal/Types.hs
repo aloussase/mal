@@ -6,6 +6,7 @@ module Mal.Types (
       MalListLike (..)
     -- * Mal data types
     , MalAtom (..)
+    , MalAtomicCell (..)
     , MalFunction (..)
     , MalList (..)
     , MalMap (..)
@@ -26,16 +27,20 @@ module Mal.Types (
     , mkMalString
     , mkMalSymbol
     , mkMalVector
+    , mkMalAtom
 ) where
 
 import           Mal.Internal.Util          (pairs)
 
+import           Control.Concurrent.STM     (TVar, newTVarIO, readTVarIO)
+import           Control.Monad.IO.Class     (MonadIO (liftIO))
 import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.IORef                 (IORef)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
+import           System.IO.Unsafe           (unsafePerformIO)
 
 
 -- Type class for types that can convert to @MalType@
@@ -85,6 +90,14 @@ data MalTailRecFunction = MkMalTailRecFunction
 instance Ord MalTailRecFunction where
     compare x y = compare (tailRecFunction x) (tailRecFunction y)
 
+-- | The basic unit of state in Mal, inspired by Clojure atoms.
+newtype MalAtomicCell = MkMalAtom (TVar MalType)
+    deriving (Eq)
+
+instance Show MalAtomicCell where
+    show (MkMalAtom ref) = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
+instance Ord MalAtomicCell where compare = error "atoms are not comparable"
+
 -- | Mal atoms.
 data MalAtom =
         MalSymbol String
@@ -102,6 +115,7 @@ data MalType =
         | MalMap MalMap
         | MalFunction MalFunction
         | MalTailRecFunction MalTailRecFunction
+        | MalAtomicCell MalAtomicCell
     deriving (Eq, Ord)
 
 -- Env things
@@ -113,10 +127,10 @@ newtype MalEnv = MkMalEnv
 
 -- | A scope where bindings run happily in the meadows.
 data MalScope = MkMalScope
-    { scopeParent   :: Maybe MalScope
+    { scopeParent   :: Maybe (IORef MalScope)
     , scopeBindings :: Map String MalType
     }
-    deriving (Show, Eq, Ord)
+    deriving (Eq)
 
 -- Smart constructors
 
@@ -161,6 +175,9 @@ mkMalVector = MalVec . MkMalVec . V.fromList
 mkMalMap :: [MalType] -> MalType
 mkMalMap = MalMap . MkMalMap . M.fromList . pairs
 
+mkMalAtom :: (MonadIO m) => MalType -> m MalType
+mkMalAtom t = MalAtomicCell . MkMalAtom <$> liftIO (newTVarIO t)
+
 instance Show MalAtom where
     show (MalSymbol s)   = s
     show (MalNumber n)   = show n
@@ -180,3 +197,4 @@ instance Show MalType where
                 , "args: ", show params, "\n"
                 , "body: ", show body,   "\n>"
                 ]
+    show (MalAtomicCell ref) = show ref

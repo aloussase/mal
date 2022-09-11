@@ -30,6 +30,13 @@ module Mal.Internal.Builtin
 
     -- * IO functions
     slurp,
+
+    -- * Atom functions
+    atom,
+    isAtom,
+    deref,
+    reset,
+    swap,
   )
 where
 
@@ -42,6 +49,7 @@ import           Mal.Types
 
 import           Prelude                    hiding (quot)
 
+import           Control.Concurrent.STM     (atomically, readTVarIO, swapTVar)
 import           Control.Exception          (throw, throwIO)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT)
@@ -73,7 +81,12 @@ builtins =
         ("str", str),
         ("println", println),
         ("read-string", readString),
-        ("slurp", slurp)
+        ("slurp", slurp),
+        ("atom", atom),
+        ("atom?", isAtom),
+        ("deref", deref),
+        ("reset!", reset),
+        ("swap!", swap)
       ]
 
 -- Arithmetic functions
@@ -201,3 +214,38 @@ slurp [MalAtom (MalString filename)] = do
   !contents <- liftIO $ readFile' filename
   pure $ mkMalString contents
 slurp xs = throw $ InvalidArgs "slurp" xs (Just "expected a filename (string)")
+
+-- Atom functions
+
+-- | 'atom' creates a new atom.
+atom :: BuiltinFunction
+atom [t] = liftIO (mkMalAtom t)
+atom xs  = liftIO $ throwIO (InvalidArgs "atom" xs (Just "expected a single argument"))
+
+-- | 'isAtom' returns true if its argument is an atom.
+isAtom :: BuiltinFunction
+isAtom [MalAtomicCell _] = liftMalType True
+isAtom _                 = liftMalType False
+
+-- | 'deref' returns the value inside an atom.
+deref :: BuiltinFunction
+deref [MalAtomicCell (MkMalAtom ref)]= liftIO $ readTVarIO ref
+deref xs = liftIO $ throwIO (InvalidArgs "deref" xs (Just "expected a single argument"))
+
+-- | 'reset!' swaps the value inside an atom.
+reset :: BuiltinFunction
+reset [MalAtomicCell (MkMalAtom ref), newVal] = liftIO $ atomically (swapTVar ref newVal)
+reset xs = liftIO $ throwIO (InvalidArgs "reset!" xs (Just "expected an atom and a new value"))
+
+-- | 'swap' applies a function to the current value inside an atom and sets its new
+-- value to the result.
+swap :: BuiltinFunction
+swap (
+    MalAtomicCell (MkMalAtom ref):
+    (MalTailRecFunction (MkMalTailRecFunction _ _ _ (MkMalFunction _ func))):
+    xs
+    ) = do
+     oldVal <- liftIO $ readTVarIO ref
+     newVal <- func (oldVal:xs)
+     liftIO $ atomically (swapTVar ref newVal)
+swap xs = liftIO $ throwIO (InvalidArgs "swap!" xs Nothing)
