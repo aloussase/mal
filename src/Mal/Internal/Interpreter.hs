@@ -22,9 +22,9 @@ import qualified Data.Vector                as V
 type Interpreter = ReaderT MalEnv IO MalType
 
 isFalsey :: MalType -> Bool
-isFalsey (MalAtom (MalBool False)) = True
-isFalsey (MalAtom MalNil)          = True
-isFalsey _                         = False
+isFalsey (MalBool False) = True
+isFalsey MalNil          = True
+isFalsey _               = False
 
 isTruthy :: MalType -> Bool
 isTruthy = not . isFalsey
@@ -38,7 +38,7 @@ evalIfStmt condition trueBranch falseBranch = do
     else liftIO $ eval Nothing currentScope (fromMaybe mkMalNil falseBranch)
 
 evalAst :: MalType -> Interpreter
-evalAst (MalAtom (MalSymbol s)) = asks interpreterScope >>= liftIO . flip Env.find s
+evalAst (MalSymbol s) = asks interpreterScope >>= liftIO . flip Env.find s
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
 evalAst (MalVec (MkMalVec vs)) = mkMalVector <$> traverse eval' (V.toList vs)
 evalAst (MalMap (MkMalMap m)) = do
@@ -48,7 +48,7 @@ evalAst (MalMap (MkMalMap m)) = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
-eval' (MalList (MkMalList ["def!", MalAtom (MalSymbol name), val])) = do
+eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
   evaledVal <- eval' val
   globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
   liftIO $ modifyIORef' globalScope (Env.insert name evaledVal)
@@ -69,7 +69,7 @@ eval' (MalList (MkMalList ["def!", MalAtom (MalSymbol name), val])) = do
 eval' (MalList (MkMalList ("let*": MalList (MkMalList bindings) : body))) = do
   currentScope <- asks interpreterScope
   letScope <- liftIO $ newIORef Env.empty {scopeParent = Just currentScope}
-  letBindings <- liftIO $ forM (pairs bindings) (\(MalAtom (MalSymbol k), v) -> (,) k <$> eval Nothing letScope v)
+  letBindings <- liftIO $ forM (pairs bindings) (\(MalSymbol k, v) -> (,) k <$> eval Nothing letScope v)
 
   liftIO $ modifyIORef' letScope (\s -> s {scopeBindings = M.fromList letBindings})
 
@@ -179,12 +179,12 @@ mkFnBindings funcName xs ys =
               ])
   where
     go :: [(String, MalType)] -> [MalType] -> [MalType] -> [(String, MalType)]
-    go bindings ["&", MalAtom (MalSymbol rest)] args = (rest, mkMalList args) : bindings
+    go bindings ["&",  MalSymbol rest] args = (rest, mkMalList args) : bindings
     go _ ("&": _ : _) _ = throw $ InvalidSignature "expected only 1 argument after '&'"
-    go bindings ((MalAtom (MalSymbol name)) : names) (arg : args) = go ((name, arg) : bindings) names args
+    go bindings ((MalSymbol name) : names) (arg : args) = go ((name, arg) : bindings) names args
     go bindings _ _ = bindings
 
     isSymbol :: String -> MalType -> Bool
-    isSymbol sym (MalAtom (MalSymbol s)) = sym == s
-    isSymbol _ _                         =  False
+    isSymbol sym (MalSymbol s) = sym == s
+    isSymbol _ _               =  False
 

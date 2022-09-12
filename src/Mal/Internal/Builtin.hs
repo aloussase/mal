@@ -112,8 +112,8 @@ builtins =
 reduceMalNumbers :: String -> (Int -> Int -> Int) -> [MalType] -> ReaderT MalEnv IO MalType
 reduceMalNumbers funcName f xs = pure $ foldl1' go xs
   where
-    go (MalAtom (MalNumber acc)) (MalAtom (MalNumber x)) = mkMalNumber $ f acc x
-    go _ x = throw $ InvalidArgs funcName [x] Nothing
+    go (MalNumber acc) (MalNumber x) = mkMalNumber $ f acc x
+    go _ x                           = throw $ InvalidArgs funcName [x] Nothing
 
 -- | 'plus' returns the sum of its arguments.
 plus :: BuiltinFunction
@@ -192,7 +192,7 @@ concat' =  pure . mkMalList . flatten []
 -- Logic functions
 
 compareNumbers :: String -> (Int -> Int -> Bool) -> BuiltinFunction
-compareNumbers _ cmp [MalAtom (MalNumber x), MalAtom (MalNumber y)] = liftMalType $ cmp x y
+compareNumbers _ cmp [MalNumber x, MalNumber y] = liftMalType $ cmp x y
 compareNumbers funcName _ xs = liftIO $ throwIO (InvalidArgs funcName xs (Just "expected two numbers"))
 
 -- | 'eq' returns true if the provided arguments are equal.
@@ -244,7 +244,7 @@ str =
 
 -- | 'readString' parses the provided string into a @MalType@.
 readString :: BuiltinFunction
-readString [MalAtom (MalString form)] = do
+readString [MalString form] = do
     filename <- asks interpreterFilename
     pure . parse (Just filename) $ T.pack form
 readString xs = throw $ InvalidArgs "read-string" xs (Just "expected a string")
@@ -254,7 +254,7 @@ readString xs = throw $ InvalidArgs "read-string" xs (Just "expected a string")
 -- | 'slurp' takes a string as its only argument, treats it as a @FilePath@ and
 -- returns the contents of the corresponding file.
 slurp :: BuiltinFunction
-slurp [MalAtom (MalString filename)] = do
+slurp [MalString filename] = do
   !contents <- liftIO $ readFile' filename
   pure $ mkMalString contents
 slurp xs = throw $ InvalidArgs "slurp" xs (Just "expected a filename (string)")
@@ -318,7 +318,7 @@ quasiquote [MalList (MkMalList ast)] = go ast
             pure $ mkMalList [mkMalSymbol "cons", result, rest]
         -- If the ast is empty just return it as is.
         go [] = pure $ mkMalList []
-quasiquote [sym@(MalAtom (MalSymbol _))] = pure $ mkMalList [mkMalSymbol "quote", sym]
+quasiquote [sym@(MalSymbol _)] = pure $ mkMalList [mkMalSymbol "quote", sym]
 quasiquote [m@(MalMap _)] = pure $ mkMalList [mkMalSymbol "quote", m]
 quasiquote [ast]                                                      = pure ast
 quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)

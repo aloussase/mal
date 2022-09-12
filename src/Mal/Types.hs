@@ -5,7 +5,6 @@ module Mal.Types (
     -- * Type class for types that can convert to @MalType@
       MalListLike (..)
     -- * Mal data types
-    , MalAtom (..)
     , MalAtomicCell (..)
     , MalFunction (..)
     , MalList (..)
@@ -36,6 +35,7 @@ import           Mal.Internal.Util          (pairs)
 import           Control.Concurrent.STM     (TVar, newTVarIO, readTVarIO)
 import           Control.Monad.IO.Class     (MonadIO (liftIO))
 import           Control.Monad.Trans.Reader (ReaderT)
+import           Data.Function              (on)
 import           Data.IORef                 (IORef)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
@@ -75,10 +75,8 @@ data MalFunction = MkMalFunction
     }
 
 instance Show MalFunction where show f = mconcat ["<fn: ", fName f, ">"]
-instance Eq MalFunction where
-    MkMalFunction { fName = a } == MkMalFunction { fName = b } = a == b
-instance Ord MalFunction where
-    MkMalFunction { fName = a } `compare` MkMalFunction { fName = b } = a `compare` b
+instance Eq MalFunction   where (==) = (==) `on` fName
+instance Ord MalFunction  where compare = compare `on` fName
 
 -- | A tail recursive function.
 data MalTailRecFunction = MkMalTailRecFunction
@@ -100,18 +98,13 @@ instance Show MalAtomicCell where
     show (MkMalAtom ref) = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
 instance Ord MalAtomicCell where compare = error "atoms are not comparable"
 
--- | Mal atoms.
-data MalAtom =
-        MalSymbol String
+-- | A data type in the Mal language.
+data MalType =
+          MalSymbol String
         | MalNumber Int
         | MalString String
         | MalBool Bool
         | MalNil
-    deriving (Eq, Ord)
-
--- | A data type in the Mal language.
-data MalType =
-        MalAtom MalAtom
         | MalList MalList
         | MalVec MalVec
         | MalMap MalMap
@@ -120,8 +113,7 @@ data MalType =
         | MalAtomicCell MalAtomicCell
     deriving (Eq, Ord)
 
-instance IsString MalAtom where fromString = MalSymbol
-instance IsString MalType where fromString = MalAtom . MalSymbol
+instance IsString MalType where fromString = MalSymbol
 
 -- Env things
 
@@ -152,23 +144,23 @@ mkMalTailRecFunction body params env function =
 
 -- | Make a Mal string from the provided @String@.
 mkMalSymbol :: String -> MalType
-mkMalSymbol = MalAtom . MalSymbol
+mkMalSymbol =  MalSymbol
 
 -- | Make a Mal symbol from the provided @String@.
 mkMalString :: String -> MalType
-mkMalString !s = MalAtom . MalString $ s
+mkMalString = MalString
 
 -- | Make a Mal number from the provided @Int@.
 mkMalNumber :: Int -> MalType
-mkMalNumber = MalAtom . MalNumber
+mkMalNumber = MalNumber
 
 -- | Make a Mal bool from the provided @Bool@.
 mkMalBool :: Bool -> MalType
-mkMalBool = MalAtom . MalBool
+mkMalBool = MalBool
 
 -- | Make Mal nil.
 mkMalNil ::MalType
-mkMalNil = MalAtom MalNil
+mkMalNil = MalNil
 
 -- | Make a Mal list from the provided list of 'MalType'.
 mkMalList :: [MalType] -> MalType
@@ -186,16 +178,13 @@ mkMalMap = MalMap . MkMalMap . M.fromList . pairs
 mkMalAtom :: (MonadIO m) => MalType -> m MalType
 mkMalAtom t = MalAtomicCell . MkMalAtom <$> liftIO (newTVarIO t)
 
-instance Show MalAtom where
+instance Show MalType where
     show (MalSymbol s)   = s
     show (MalNumber n)   = show n
     show (MalString s)   = mconcat [ "\"", s, "\""]
     show (MalBool True)  = "#t"
     show (MalBool False) = "#f"
     show MalNil          = "nil"
-
-instance Show MalType where
-    show (MalAtom a)     = show a
     show (MalList xs)    = showListLike "(" ")" xs
     show (MalVec vs)     = showListLike "[" "]" vs
     show (MalMap m)      = showListLike "{" "}" m
