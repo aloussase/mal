@@ -52,7 +52,7 @@ import           Mal.Types
 import           Prelude                    hiding (quot)
 
 import           Control.Concurrent.STM     (atomically, readTVarIO, swapTVar)
-import           Control.Exception          (SomeException, throw, throwIO)
+import           Control.Exception          (throw, throwIO)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')

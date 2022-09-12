@@ -1,15 +1,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Main where
 
 import qualified Mal
 
-import           Control.Applicative     ((<**>), (<|>))
+import           Control.Applicative     (Alternative (some), (<**>), (<|>))
 import           Control.Exception       (catch)
 import           Data.IORef              (IORef)
 import           Data.Text               (Text)
 import qualified Data.Text               as T
 import qualified Data.Text.IO            as TIO
+import           Options.Applicative     (argument, metavar, str)
 import qualified Options.Applicative     as O
 import qualified System.Console.Readline as R
 import           System.Exit             (exitSuccess)
@@ -24,7 +26,9 @@ replInput :: O.Parser Input
 replInput = pure Repl
 
 program :: O.Parser ProgramOptions
-program = MkProgramOptions <$> (fileInput <|> replInput)
+program =
+    (MkProgramOptions <$> (fileInput <|> replInput))
+        <* some (argument (str @Text) (metavar "rest of program arguments"))
 
 read' :: IO Text
 read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLine

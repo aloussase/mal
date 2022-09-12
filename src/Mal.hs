@@ -51,6 +51,6 @@ run filename initialScope program = do
 
     void $ eval (Just (MkMalFilename coreFile)) initialScope (parse (Just $ MkMalFilename coreFile) core)
     void $ eval (Just (MkMalFilename coreFile)) initialScope
-                (mkMalList [mkMalSymbol "def!", mkMalSymbol "*ARGV*", mkMalList args])
+                (mkMalList [mkMalSymbol "def!", mkMalSymbol "*ARGV*", mkMalList (mkMalSymbol "list" : args)])
 
     eval filename initialScope (parse filename program)
