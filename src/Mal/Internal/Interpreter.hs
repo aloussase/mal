@@ -91,7 +91,8 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) =
   evalIfStmt condition trueBranch Nothing
 eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) =
   evalIfStmt condition trueBranch (Just falseBranch)
--- fn special form (lambdas)
+
+-- fn* special form (lambdas)
 eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params), body])) = do
   let closure :: [MalType] -> Interpreter
       closure args = do
@@ -111,32 +112,15 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params)
   currentScope <- asks interpreterScope
   let (MalFunction function) = mkMalFunction "lambda" closure
   pure $ mkMalTailRecFunction body params currentScope function
+
+-- quote special form
+eval' (MalList (MkMalList [MalAtom (MalSymbol "quote"), mt])) = pure mt
+
+-- Here we probably have a function call.
 eval' xs@(MalList _) = evalAst xs >>= evalCall
+
+-- Otherwise just return the evaluated ast.
 eval' ast = evalAst ast
-
--- | Bind a list of function names to the corresponding arguments.
--- This handles clojure-style rest params as well.
-mkFnBindings :: String -> [MalType] -> [MalType] -> [(String, MalType)]
-mkFnBindings funcName xs ys =
-    if length xs == length ys || any (isSymbol "&") xs then
-        go [] xs ys
-    else
-        throw $ InvalidArgs funcName xs (Just $ mconcat [
-                "expected "
-              , show (length xs)
-              , " argument(s), but got "
-              , show (length ys)
-              ])
-  where
-    go :: [(String, MalType)] -> [MalType] -> [MalType] -> [(String, MalType)]
-    go bindings [MalAtom (MalSymbol "&"), MalAtom (MalSymbol rest)] args = (rest, mkMalList args) : bindings
-    go _ (MalAtom (MalSymbol "&") : _ : _) _ = throw $ InvalidSignature "expected only 1 argument after '&'"
-    go bindings ((MalAtom (MalSymbol name)) : names) (arg : args) = go ((name, arg) : bindings) names args
-    go bindings _ _ = bindings
-
-    isSymbol :: String -> MalType -> Bool
-    isSymbol sym (MalAtom (MalSymbol s)) = sym == s
-    isSymbol _ _                         =  False
 
 -- | 'eval' evaluates the provided 'MalType', using @scope@ as the initial
 -- environment.
@@ -175,3 +159,28 @@ evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body para
   liftIO $ newIORef functionScope >>= flip (eval Nothing) body
 evalCall (MalList (MkMalList (x : _))) = liftIO $ throwIO (NotAFunction x)
 evalCall ast = pure ast
+
+-- | Bind a list of function names to the corresponding arguments.
+-- This handles clojure-style rest params as well.
+mkFnBindings :: String -> [MalType] -> [MalType] -> [(String, MalType)]
+mkFnBindings funcName xs ys =
+    if length xs == length ys || any (isSymbol "&") xs then
+        go [] xs ys
+    else
+        throw $ InvalidArgs funcName xs (Just $ mconcat [
+                "expected "
+              , show (length xs)
+              , " argument(s), but got "
+              , show (length ys)
+              ])
+  where
+    go :: [(String, MalType)] -> [MalType] -> [MalType] -> [(String, MalType)]
+    go bindings [MalAtom (MalSymbol "&"), MalAtom (MalSymbol rest)] args = (rest, mkMalList args) : bindings
+    go _ (MalAtom (MalSymbol "&") : _ : _) _ = throw $ InvalidSignature "expected only 1 argument after '&'"
+    go bindings ((MalAtom (MalSymbol name)) : names) (arg : args) = go ((name, arg) : bindings) names args
+    go bindings _ _ = bindings
+
+    isSymbol :: String -> MalType -> Bool
+    isSymbol sym (MalAtom (MalSymbol s)) = sym == s
+    isSymbol _ _                         =  False
+
