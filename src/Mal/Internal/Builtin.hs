@@ -43,7 +43,10 @@ module Mal.Internal.Builtin
     swap,
 
     -- * Misc
-    quasiquote
+    quasiquote,
+
+    -- * Vector functions
+    vec
   )
 where
 
@@ -62,6 +65,7 @@ import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')
 import qualified Data.Text                  as T
+import qualified Data.Vector                as V
 import           System.IO                  (readFile')
 
 type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
@@ -88,16 +92,20 @@ builtins =
         ("<=", lessThanEq),
         (">", greaterThan),
         (">=", greaterThanEq),
+
         ("prn", prn),
         ("str", str),
         ("println", println),
         ("read-string", readString),
         ("slurp", slurp),
+
         ("atom", atom),
         ("atom?", isAtom),
         ("deref", deref),
         ("reset!", reset),
-        ("swap!", swap)
+        ("swap!", swap),
+
+        ("vec", vec)
       ]
 
 -- Arithmetic functions
@@ -165,6 +173,7 @@ count xs = liftIO $ throwIO (InvalidArgs "count" xs (Just "expected a list"))
 -- (12 1 2 3)
 cons :: BuiltinFunction
 cons [mt, MalList (MkMalList xs)] = pure $ mkMalList (mt:xs)
+cons [mt, MalVec (MkMalVec vs)] = pure $ mkMalList (mt : V.toList vs)
 cons xs = liftIO $ throwIO (InvalidArgs "concat" xs (Just "expected a thing and a list"))
 
 -- | 'concat' concatenates the provided lists.
@@ -176,6 +185,7 @@ concat' =  pure . mkMalList . flatten []
     where
         flatten :: [MalType] -> [MalType] -> [MalType]
         flatten acc (MalList (MkMalList xs):rest) = flatten (acc ++ xs) rest
+        flatten acc (MalVec (MkMalVec vs):rest) = flatten (acc ++ V.toList vs) rest
         flatten acc []                            = acc
         flatten _ xs = throw (InvalidArgs "concat" xs $ Just "expected lists")
 
@@ -187,7 +197,8 @@ compareNumbers funcName _ xs = liftIO $ throwIO (InvalidArgs funcName xs (Just "
 
 -- | 'eq' returns true if the provided arguments are equal.
 eq :: BuiltinFunction
-eq = compareNumbers "=" (==)
+eq [x, y] = liftMalType $ x == y
+eq xs = liftIO $ throwIO (InvalidArgs "eq" xs (Just "expected two arguments"))
 
 -- | 'lessThan' return true if the first argument is less than the second one.
 --
@@ -311,3 +322,9 @@ quasiquote [sym@(MalAtom (MalSymbol _))] = pure $ mkMalList [mkMalSymbol "quote"
 quasiquote [m@(MalMap _)] = pure $ mkMalList [mkMalSymbol "quote", m]
 quasiquote [ast]                                                      = pure ast
 quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
+
+-- Vector functions
+vec :: BuiltinFunction
+vec [MalList (MkMalList xs)] = pure $ mkMalVector xs
+vec [vs@(MalVec _)] = pure vs
+vec xs = liftIO $ throwIO (InvalidArgs "vec" xs (Just "expected a list"))
