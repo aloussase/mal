@@ -10,7 +10,7 @@ import           Mal.Internal.Util          (pairs)
 import           Mal.Types
 
 import           Control.Exception          (throw, throwIO)
-import           Control.Monad              (when)
+import           Control.Monad              (forM, when)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
 import           Data.IORef                 (IORef, modifyIORef', newIORef,
@@ -37,9 +37,7 @@ evalIfStmt condition trueBranch falseBranch = do
     else liftIO $ eval currentScope (fromMaybe mkMalNil falseBranch)
 
 evalAst :: MalType -> Interpreter
-evalAst (MalAtom (MalSymbol s)) = do
-    env <- asks scope
-    liftIO $ Env.find env s
+evalAst (MalAtom (MalSymbol s))  = asks scope >>= liftIO . flip Env.find s
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
 evalAst (MalVec (MkMalVec vs))   = mkMalVector <$> traverse eval' (V.toList vs)
 evalAst (MalMap (MkMalMap m))    = do
@@ -63,11 +61,17 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name),
 --
 -- If we go for the former, then the bodies of functions defined in a let binding
 -- cannot refer to other variables defined in the same let, as they won't exist in that moment.
+-- This is how Clojure's let works.
+--
+-- Clojure has another macro called letfn that behaves like the latter and like the let we will
+-- be implementing.
 --
 eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body))) = do
     currentScope <- asks scope
-    letBindings  <- mapM (\(MalAtom (MalSymbol k), v) -> (,) k <$> eval' v) (pairs bindings)
-    letScope <- liftIO $ newIORef Env.empty { scopeParent = Just currentScope, scopeBindings = M.fromList letBindings }
+    letScope <- liftIO $ newIORef Env.empty { scopeParent = Just currentScope }
+    letBindings <- liftIO $ forM (pairs bindings) (\(MalAtom (MalSymbol k), v) -> (,) k <$> eval letScope v)
+
+    liftIO $ modifyIORef' letScope (\s -> s { scopeBindings = M.fromList letBindings } )
 
     -- This let's us do TCO. The alternative would be to do
     -- >>> eval' body
