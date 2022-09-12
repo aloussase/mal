@@ -12,7 +12,6 @@ import           Control.Monad              (void)
 import           Data.Functor               ((<&>))
 import qualified Data.Map                   as M
 import           Data.Text                  (Text)
-import qualified Data.Text                  as T
 import qualified Data.Vector                as V
 import           Data.Void
 import           Text.Megaparsec            hiding (parse)
@@ -85,12 +84,12 @@ readForm = label "valid mal expression" $ lexeme
     (choice [readComment, readList, readAtom, readVector, readMap])
 
 -- | 'parse' parses the provided Mal program as a @String@ and returns the resulting AST.
-parse :: Maybe MalFilename -> String -> MalType
+parse :: Maybe MalFilename -> Text -> MalType
 parse filename input =
     let filename' = case filename of
                         Just (MkMalFilename f) -> f
                         _                      -> "<repl>"
      in
-        case runParser (space >> readForm <* eof) filename' (T.pack input) of
+        case runParser (space >> readForm <* eof) filename' input of
           Left err     -> throw $ ParseError (errorBundlePretty err)
           Right result -> result

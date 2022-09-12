@@ -7,10 +7,12 @@ import qualified Mal
 import           Control.Applicative     ((<**>), (<|>))
 import           Control.Exception       (catch)
 import           Data.IORef              (IORef)
+import           Data.Text               (Text)
+import qualified Data.Text               as T
+import qualified Data.Text.IO            as TIO
 import qualified Options.Applicative     as O
 import qualified System.Console.Readline as R
 import           System.Exit             (exitSuccess)
-import           System.IO               (readFile')
 
 data Input = File String | Repl
 newtype ProgramOptions = MkProgramOptions { input :: Input }
@@ -24,12 +26,12 @@ replInput = pure Repl
 program :: O.Parser ProgramOptions
 program = MkProgramOptions <$> (fileInput <|> replInput)
 
-read' :: IO String
+read' :: IO Text
 read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLine
     where
-        returnLine line = R.addHistory line >> pure line
+        returnLine line = R.addHistory line >> pure (T.pack line)
 
-eval :: Maybe Mal.MalFilename -> IORef Mal.MalScope -> String -> IO Mal.MalType
+eval :: Maybe Mal.MalFilename -> IORef Mal.MalScope -> Text -> IO Mal.MalType
 eval = Mal.run
 
 print' :: Mal.MalType -> IO ()
@@ -41,7 +43,7 @@ main = do
     initialScope <- Mal.emptyScope
 
     case input options of
-        File filename -> readFile' filename >>= eval (Just $ Mal.MkMalFilename filename) initialScope >>= print
+        File filename -> TIO.readFile filename >>= eval (Just $ Mal.MkMalFilename filename) initialScope >>= print
         Repl          -> repl initialScope
 
     where

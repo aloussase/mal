@@ -41,6 +41,7 @@ executable mal
         , mal
         , optparse-applicative >= 0.17.0 && < 0.18
         , readline             >= 1.0.3 && < 1.1
+        , text
     hs-source-dirs:   app
     default-language: Haskell2010
 

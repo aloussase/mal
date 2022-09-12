@@ -52,8 +52,7 @@ import           Mal.Types
 import           Prelude                    hiding (quot)
 
 import           Control.Concurrent.STM     (atomically, readTVarIO, swapTVar)
-import           Control.Exception          (SomeException, catch, throw,
-                                             throwIO)
+import           Control.Exception          (SomeException, throw, throwIO)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')
@@ -207,7 +206,7 @@ str =
 readString :: BuiltinFunction
 readString [MalAtom (MalString form)] = do
     filename <- asks interpreterFilename
-    pure . parse (Just filename) $ form
+    pure . parse (Just filename) $ T.pack form
 readString xs = throw $ InvalidArgs "read-string" xs (Just "expected a string")
 
 -- IO functions
