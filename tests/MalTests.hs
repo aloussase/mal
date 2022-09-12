@@ -33,6 +33,28 @@ builtinsSpec = describe "builtins" $ do
             `shouldReturn`
             mkMalNumber 1
 
+    context "cons" $ do
+        it "works" $ do
+            runWithScope "(cons 1 (list))" `shouldReturn` mkMalList [mkMalNumber 1]
+            runWithScope "(cons 1 (list 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
+            runWithScope "(cons (list 1) (list 2 3))"
+                `shouldReturn`
+                mkMalList [ mkMalList [mkMalNumber 1]
+                          , mkMalNumber 2, mkMalNumber 3
+                          ]
+
+    context "concat" $ do
+        it "works" $ do
+            runWithScope "(concat)" `shouldReturn` mkMalList []
+            runWithScope "(concat (list 1 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
+            runWithScope "(concat (list 1 2) (list 3 4))"
+                `shouldReturn`
+                mkMalList [mkMalNumber 1, mkMalNumber 2, mkMalNumber 3, mkMalNumber 4]
+            runWithScope "(concat (concat))" `shouldReturn` mkMalList []
+            runWithScope "(concat (list) (list))" `shouldReturn` mkMalList []
+            -- TODO: Make = work with things other than numbers.
+            -- runWithScope "(= () (concat))" `shouldReturn` mkMalBool True
+
 
 evaluatorSpec :: Spec
 evaluatorSpec = describe "Mal.run" $ do
@@ -137,6 +159,51 @@ evaluatorSpec = describe "Mal.run" $ do
                              , "(def! bar (fn* (n) (if (= n 0) 0 (foo (- n 1)))))"
                              , "(foo 10000)"
                              , ")"]) `shouldReturn` mkMalNumber 0
+
+        context "quote" $ do
+            it "works" $ do
+                runWithScope "(quote 7)" `shouldReturn` mkMalNumber 7
+                runWithScope "(quote (1 2 3))"
+                    `shouldReturn`
+                    mkMalList [mkMalNumber 1, mkMalNumber 2, mkMalNumber 3]
+                runWithScope "(quote (1 2 (3 4)))"
+                    `shouldReturn`
+                    mkMalList [ mkMalNumber 1, mkMalNumber 2
+                              , mkMalList [mkMalNumber 3, mkMalNumber 4]
+                              ]
+
+        context "quasiquote" $ do
+            it "works with simple expressions" $ do
+                runWithScope "(quasiquote nil)" `shouldReturn` mkMalNil
+                runWithScope "(quasiquote 7)" `shouldReturn` mkMalNumber 7
+                runWithScope "(quasiquote {\"a\" b})"
+                    `shouldReturn` mkMalMap [mkMalString "a", mkMalSymbol "b"]
+
+            it "works with lists" $ do
+                runWithScope "(quasiquote ())" `shouldReturn` mkMalList []
+                runWithScope "(quasiquote (1 2 3))" `shouldReturn` mkMalList (map mkMalNumber [1..3])
+                runWithScope "(quasiquote (nil))" `shouldReturn` mkMalList [mkMalNil]
+                runWithScope "(quasiquote (1 () 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalList [], mkMalNumber 2]
+
+        context "unquote" $ do
+            it "works" $ do
+                runWithScope "(quasiquote (unquote 7))" `shouldReturn` mkMalNumber 7
+                runWithScope "(do (def! a 8) (quasiquote (unquote a)))" `shouldReturn` mkMalNumber 8
+                runWithScope "(do (def! a 8) (quasiquote (1 a 3)) )"
+                    `shouldReturn` mkMalList [mkMalNumber 1, mkMalSymbol "a", mkMalNumber 3]
+                runWithScope "(quasiquote ((unquote 1) (unquote 2)))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
+
+            it "works in let*" $
+                runWithScope "(let* (x 0) (quasiquote (unquote x)))" `shouldReturn` mkMalNumber 0
+
+        context "splice-unquote" $ do
+            it "works" $ do
+                runWithScope "(do (def! c (quote (1 \"b\" \"d\"))) (quasiquote (1 (splice-unquote c) 3)) )"
+                    `shouldReturn`
+                    mkMalList [ mkMalNumber 1, mkMalNumber 1, mkMalString "b", mkMalString "d", mkMalNumber 3]
+                runWithScope "(do (def! c (quote (1 \"b\" \"d\"))) (quasiquote ((splice-unquote c) (splice-unquote c))) )"
+                    `shouldReturn`
+                    mkMalList (take 6 $ cycle [ mkMalNumber 1, mkMalString "b", mkMalString "d"])
 
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do

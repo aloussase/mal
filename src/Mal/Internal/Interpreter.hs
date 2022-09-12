@@ -3,6 +3,12 @@
 -- | A tree-walk interpreter for Mal programs.
 module Mal.Internal.Interpreter (eval) where
 
+import           Mal.Error
+import qualified Mal.Internal.Builtin       as B
+import qualified Mal.Internal.Environment   as Env
+import           Mal.Internal.Util          (pairs)
+import           Mal.Types
+
 import           Control.Exception          (throw, throwIO)
 import           Control.Monad              (forM, when)
 import           Control.Monad.IO.Class     (liftIO)
@@ -12,11 +18,6 @@ import           Data.IORef                 (IORef, modifyIORef', newIORef,
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
-import           Mal.Error
-import qualified Mal.Internal.Builtin       as B
-import qualified Mal.Internal.Environment   as Env
-import           Mal.Internal.Util          (pairs)
-import           Mal.Types
 
 type Interpreter = ReaderT MalEnv IO MalType
 
@@ -47,7 +48,7 @@ evalAst (MalMap (MkMalMap m)) = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
-eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name), val])) = do
+eval' (MalList (MkMalList ["def!", MalAtom (MalSymbol name), val])) = do
   evaledVal <- eval' val
   globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
   liftIO $ modifyIORef' globalScope (Env.insert name evaledVal)
@@ -65,7 +66,7 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name),
 -- Clojure has another macro called letfn that behaves like the latter and like the let we will
 -- be implementing.
 --
-eval' (MalList (MkMalList (MalAtom (MalSymbol "let*") : MalList (MkMalList bindings) : body))) = do
+eval' (MalList (MkMalList ("let*": MalList (MkMalList bindings) : body))) = do
   currentScope <- asks interpreterScope
   letScope <- liftIO $ newIORef Env.empty {scopeParent = Just currentScope}
   letBindings <- liftIO $ forM (pairs bindings) (\(MalAtom (MalSymbol k), v) -> (,) k <$> eval Nothing letScope v)
@@ -77,7 +78,7 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "let*") : MalList (MkMalList bindi
   liftIO $ eval Nothing letScope (mkMalList $ mkMalSymbol "do" : body)
 
 -- Do special form
-eval' (MalList (MkMalList (MalAtom (MalSymbol "do") : body))) =
+eval' (MalList (MkMalList ("do" : body))) =
   if null body
     then pure mkMalNil
     else do
@@ -87,13 +88,13 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "do") : body))) =
       liftIO $ eval Nothing currentScope (last body)
 
 -- If expression
-eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) =
+eval' (MalList (MkMalList ["if", condition, trueBranch])) =
   evalIfStmt condition trueBranch Nothing
-eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch, falseBranch])) =
+eval' (MalList (MkMalList ["if", condition, trueBranch, falseBranch])) =
   evalIfStmt condition trueBranch (Just falseBranch)
 
 -- fn* special form (lambdas)
-eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params), body])) = do
+eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
   let closure :: [MalType] -> Interpreter
       closure args = do
         -- Create a new environment from the outer scope and bind the function arguments in it.
@@ -114,7 +115,10 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params)
   pure $ mkMalTailRecFunction body params currentScope function
 
 -- quote special form
-eval' (MalList (MkMalList [MalAtom (MalSymbol "quote"), mt])) = pure mt
+eval' (MalList (MkMalList ["quote", mt])) = pure mt
+
+-- quasiquote special form
+eval' (MalList (MkMalList ("quasiquote":ast))) = B.quasiquote ast >>= eval'
 
 -- Here we probably have a function call.
 eval' xs@(MalList _) = evalAst xs >>= evalCall
@@ -175,8 +179,8 @@ mkFnBindings funcName xs ys =
               ])
   where
     go :: [(String, MalType)] -> [MalType] -> [MalType] -> [(String, MalType)]
-    go bindings [MalAtom (MalSymbol "&"), MalAtom (MalSymbol rest)] args = (rest, mkMalList args) : bindings
-    go _ (MalAtom (MalSymbol "&") : _ : _) _ = throw $ InvalidSignature "expected only 1 argument after '&'"
+    go bindings ["&", MalAtom (MalSymbol rest)] args = (rest, mkMalList args) : bindings
+    go _ ("&": _ : _) _ = throw $ InvalidSignature "expected only 1 argument after '&'"
     go bindings ((MalAtom (MalSymbol name)) : names) (arg : args) = go ((name, arg) : bindings) names args
     go bindings _ _ = bindings
 

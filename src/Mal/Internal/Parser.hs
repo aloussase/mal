@@ -79,9 +79,36 @@ readComment :: Parser MalType
 readComment = label "comment" $
     symbol ";" >> anySingle `manyTill` (void newline <|> eof) >> pure mkMalNil
 
+readQuote :: Parser MalType
+readQuote = do
+    _ <- char '\''
+    form <- readForm
+    pure $ mkMalList ["quote", form]
+
+readQuasiquote :: Parser MalType
+readQuasiquote = do
+    _ <- char '`'
+    form <- readForm
+    pure $ mkMalList ["quasiquote", form]
+
+readUnquote :: Parser MalType
+readUnquote = do
+    _ <- char '~'
+    form <- readForm
+    pure $ mkMalList ["unquote", form]
+
+readSpliceUnquote :: Parser MalType
+readSpliceUnquote = do
+    _ <- string "~@"
+    form <- readForm
+    pure $ mkMalList ["splice-unquote", form]
+
+readerMacro :: Parser MalType
+readerMacro = readQuote <|> readQuasiquote <|> try readSpliceUnquote <|> readUnquote
+
 readForm :: Parser MalType
 readForm = label "valid mal expression" $ lexeme
-    (choice [readComment, readList, readAtom, readVector, readMap])
+    (choice [readComment, readList, readAtom, readVector, readMap, readerMacro])
 
 -- | 'parse' parses the provided Mal program as a @String@ and returns the resulting AST.
 parse :: Maybe MalFilename -> Text -> MalType

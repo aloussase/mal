@@ -41,6 +41,9 @@ module Mal.Internal.Builtin
     deref,
     reset,
     swap,
+
+    -- * Misc
+    quasiquote
   )
 where
 
@@ -279,3 +282,32 @@ swap (
      newVal <- func (oldVal:xs)
      liftIO $ atomically (swapTVar ref newVal)
 swap xs = liftIO $ throwIO (InvalidArgs "swap!" xs Nothing)
+
+-- Misc
+
+-- | 'quasiquote' quasiquotes an expression.
+--
+-- ...
+--
+-- Plz don't ask more, I honestly don't know WTF is going on down there.
+-- https://github.com/kanaka/mal/blob/master/process/guide.md#step-7-quoting
+--
+quasiquote :: BuiltinFunction
+quasiquote [MalList (MkMalList ["unquote", ast])] = pure ast
+quasiquote [MalList (MkMalList ast)] = go ast
+    where
+        go :: BuiltinFunction
+        go (MalList (MkMalList ["splice-unquote", elt]):rest) = do
+            result <- go rest
+            -- This assumes that elt will eventually resolve to a list.
+            pure $ mkMalList [ mkMalSymbol "concat", elt, result]
+        go (elt:ys) = do
+            result <- quasiquote [elt]  -- Quasiquote elt
+            rest <- go ys               -- Process the rest
+            pure $ mkMalList [mkMalSymbol "cons", result, rest]
+        -- If the ast is empty just return it as is.
+        go [] = pure $ mkMalList []
+quasiquote [sym@(MalAtom (MalSymbol _))] = pure $ mkMalList [mkMalSymbol "quote", sym]
+quasiquote [m@(MalMap _)] = pure $ mkMalList [mkMalSymbol "quote", m]
+quasiquote [ast]                                                      = pure ast
+quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)

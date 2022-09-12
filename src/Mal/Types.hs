@@ -39,6 +39,7 @@ import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.IORef                 (IORef)
 import           Data.Map                   (Map)
 import qualified Data.Map                   as M
+import           Data.String                (IsString (..))
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           System.IO.Unsafe           (unsafePerformIO)
@@ -118,6 +119,9 @@ data MalType =
         | MalTailRecFunction MalTailRecFunction
         | MalAtomicCell MalAtomicCell
     deriving (Eq, Ord)
+
+instance IsString MalAtom where fromString = MalSymbol
+instance IsString MalType where fromString = MalAtom . MalSymbol
 
 -- Env things
 
