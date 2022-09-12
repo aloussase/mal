@@ -29,6 +29,8 @@ module Mal.Internal.Builtin
     isList,
     isEmpty,
     count,
+    cons,
+    concat,
 
     -- * IO functions
     slurp,
@@ -70,10 +72,14 @@ builtins =
         ("-", sub),
         ("/", quot),
         ("*", mult),
+
         ("list", list),
         ("list?", isList),
         ("empty?", isEmpty),
         ("count", count),
+        ("cons", cons),
+        ("concat", concat'),
+
         ("=", eq),
         ("<", lessThan),
         ("<=", lessThanEq),
@@ -149,6 +155,26 @@ isEmpty _                        = liftMalType False
 count :: BuiltinFunction
 count [MalList (MkMalList xs)] = liftMalType . length $ xs
 count xs = liftIO $ throwIO (InvalidArgs "count" xs (Just "expected a list"))
+
+-- | Prepend an element to a list.
+--
+-- >>> (cons 12 (list 1 2 3))
+-- (12 1 2 3)
+cons :: BuiltinFunction
+cons [mt, MalList (MkMalList xs)] = pure $ mkMalList (mt:xs)
+cons xs = liftIO $ throwIO (InvalidArgs "concat" xs (Just "expected a thing and a list"))
+
+-- | 'concat' concatenates the provided lists.
+--
+-- >>> (concat (list 1 2) (list 3 4))
+-- (1 2 3 4)
+concat' :: BuiltinFunction
+concat' =  pure . mkMalList . flatten []
+    where
+        flatten :: [MalType] -> [MalType] -> [MalType]
+        flatten acc (MalList (MkMalList xs):rest) = flatten (acc ++ xs) rest
+        flatten acc []                            = acc
+        flatten _ xs = throw (InvalidArgs "concat" xs $ Just "expected lists")
 
 -- Logic functions
 

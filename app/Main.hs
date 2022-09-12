@@ -5,7 +5,7 @@ module Main where
 
 import qualified Mal
 
-import           Control.Applicative     (Alternative (some), (<**>), (<|>))
+import           Control.Applicative     (Alternative (many), (<**>), (<|>))
 import           Control.Exception       (catch)
 import           Data.IORef              (IORef)
 import           Data.Text               (Text)
@@ -28,7 +28,7 @@ replInput = pure Repl
 program :: O.Parser ProgramOptions
 program =
     (MkProgramOptions <$> (fileInput <|> replInput))
-        <* some (argument (str @Text) (metavar "rest of program arguments"))
+        <* many (argument (str @Text) (metavar "rest of program arguments"))
 
 read' :: IO Text
 read' = R.readline "$ " >>= maybe (putStrLn "bye bye!" >> exitSuccess) returnLine
