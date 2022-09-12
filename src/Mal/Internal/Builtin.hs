@@ -268,24 +268,24 @@ atom xs  = liftIO $ throwIO (InvalidArgs "atom" xs (Just "expected a single argu
 
 -- | 'isAtom' returns true if its argument is an atom.
 isAtom :: BuiltinFunction
-isAtom [MalAtomicCell _] = liftMalType True
-isAtom _                 = liftMalType False
+isAtom [MalAtom _] = liftMalType True
+isAtom _           = liftMalType False
 
 -- | 'deref' returns the value inside an atom.
 deref :: BuiltinFunction
-deref [MalAtomicCell (MkMalAtom ref)]= liftIO $ readTVarIO ref
+deref [MalAtom ref]= liftIO $ readTVarIO ref
 deref xs = liftIO $ throwIO (InvalidArgs "deref" xs (Just "expected a single argument"))
 
 -- | 'reset!' swaps the value inside an atom.
 reset :: BuiltinFunction
-reset [MalAtomicCell (MkMalAtom ref), newVal] = liftIO $ atomically (swapTVar ref newVal)
+reset [MalAtom ref, newVal] = liftIO $ atomically (swapTVar ref newVal)
 reset xs = liftIO $ throwIO (InvalidArgs "reset!" xs (Just "expected an atom and a new value"))
 
 -- | 'swap' applies a function to the current value inside an atom and sets its new
 -- value to the result.
 swap :: BuiltinFunction
 swap (
-    MalAtomicCell (MkMalAtom ref):
+    MalAtom ref:
     (MalTailRecFunction (MkMalTailRecFunction _ _ _ (MkMalFunction _ func))):
     xs
     ) = do

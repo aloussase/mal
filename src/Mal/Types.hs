@@ -5,7 +5,6 @@ module Mal.Types (
     -- * Type class for types that can convert to @MalType@
       MalListLike (..)
     -- * Mal data types
-    , MalAtom (..)
     , MalFunction (..)
     , MalList (..)
     , MalMap (..)
@@ -88,12 +87,6 @@ data MalTailRecFunction = MkMalTailRecFunction
 
 instance Ord MalTailRecFunction where compare = compare `on` tailRecFunction
 
--- | The basic unit of state in Mal, inspired by Clojure atoms.
-newtype MalAtom = MkMalAtom (TVar MalType) deriving (Eq)
-
-instance Show MalAtom where show (MkMalAtom ref) = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
-instance Ord MalAtom  where compare = error "atoms are not comparable"
-
 -- | A data type in the Mal language.
 data MalType =
           MalSymbol String
@@ -106,10 +99,40 @@ data MalType =
         | MalMap MalMap
         | MalFunction MalFunction
         | MalTailRecFunction MalTailRecFunction
-        | MalAtomicCell MalAtom
-    deriving (Eq, Ord)
+        | MalAtom (TVar MalType)
+    deriving (Eq)
 
 instance IsString MalType where fromString = MalSymbol
+
+instance Show MalType where
+    show (MalSymbol s)   = s
+    show (MalNumber n)   = show n
+    show (MalString s)   = mconcat [ "\"", s, "\""]
+    show (MalBool True)  = "#t"
+    show (MalBool False) = "#f"
+    show MalNil          = "nil"
+    show (MalList xs)    = showListLike "(" ")" xs
+    show (MalVec vs)     = showListLike "[" "]" vs
+    show (MalMap m)      = showListLike "{" "}" m
+    show (MalFunction f) = show f
+    show (MalAtom ref)   = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
+    show (MalTailRecFunction (MkMalTailRecFunction body params _ _)) =
+        mconcat [ "<fn: "
+                , "args: ", show params, "\n"
+                , "body: ", show body,   "\n>"
+                ]
+
+instance Ord MalType where
+    compare (MalSymbol x)          (MalSymbol y)          = compare x y
+    compare (MalNumber x)          (MalNumber y)          = compare x y
+    compare (MalString x)          (MalString y)          = compare x y
+    compare (MalBool x)            (MalBool y)            = compare x y
+    compare (MalList x)            (MalList y)            = compare x y
+    compare (MalVec x)             (MalVec y)             = compare x y
+    compare (MalMap x)             (MalMap y)             = compare x y
+    compare (MalFunction x)        (MalFunction y)        = compare x y
+    compare (MalTailRecFunction x) (MalTailRecFunction y) = compare x y
+    compare _ _ = error "cant compare this lemons and apples"
 
 -- Env things
 
@@ -172,22 +195,5 @@ mkMalMap :: [MalType] -> MalType
 mkMalMap = MalMap . MkMalMap . M.fromList . pairs
 
 mkMalAtom :: (MonadIO m) => MalType -> m MalType
-mkMalAtom t = MalAtomicCell . MkMalAtom <$> liftIO (newTVarIO t)
+mkMalAtom t = MalAtom <$> liftIO (newTVarIO t)
 
-instance Show MalType where
-    show (MalSymbol s)       = s
-    show (MalNumber n)       = show n
-    show (MalString s)       = mconcat [ "\"", s, "\""]
-    show (MalBool True)      = "#t"
-    show (MalBool False)     = "#f"
-    show MalNil              = "nil"
-    show (MalList xs)        = showListLike "(" ")" xs
-    show (MalVec vs)         = showListLike "[" "]" vs
-    show (MalMap m)          = showListLike "{" "}" m
-    show (MalFunction f)     = show f
-    show (MalAtomicCell ref) = show ref
-    show (MalTailRecFunction (MkMalTailRecFunction body params _ _)) =
-        mconcat [ "<fn: "
-                , "args: ", show params, "\n"
-                , "body: ", show body,   "\n>"
-                ]
