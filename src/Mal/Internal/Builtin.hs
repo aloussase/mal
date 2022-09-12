@@ -173,7 +173,7 @@ count xs = liftIO $ throwIO (InvalidArgs "count" xs (Just "expected a list"))
 -- (12 1 2 3)
 cons :: BuiltinFunction
 cons [mt, MalList (MkMalList xs)] = pure $ mkMalList (mt:xs)
-cons [mt, MalVec (MkMalVec vs)] = pure $ mkMalList (mt : V.toList vs)
+cons [mt, MalVec (MkMalVector vs)] = pure $ mkMalList (mt : V.toList vs)
 cons xs = liftIO $ throwIO (InvalidArgs "concat" xs (Just "expected a thing and a list"))
 
 -- | 'concat' concatenates the provided lists.
@@ -185,7 +185,7 @@ concat' =  pure . mkMalList . flatten []
     where
         flatten :: [MalType] -> [MalType] -> [MalType]
         flatten acc (MalList (MkMalList xs):rest) = flatten (acc ++ xs) rest
-        flatten acc (MalVec (MkMalVec vs):rest) = flatten (acc ++ V.toList vs) rest
+        flatten acc (MalVec (MkMalVector vs):rest) = flatten (acc ++ V.toList vs) rest
         flatten acc []                            = acc
         flatten _ xs = throw (InvalidArgs "concat" xs $ Just "expected lists")
 

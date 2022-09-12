@@ -9,7 +9,7 @@ module Mal.Types (
     , MalList (..)
     , MalMap (..)
     , MalType (..)
-    , MalVec (..)
+    , MalVector (..)
     , MalTailRecFunction (..)
     -- * Env things
     , MalEnv (..)
@@ -50,7 +50,7 @@ class MalListLike a where toList :: a -> [MalType]
 -- Mal data types
 
 -- | The vector data type in Mal.
-newtype MalVec = MkMalVec (Vector MalType) deriving (Show, Eq, Ord)
+newtype MalVector = MkMalVector (Vector MalType) deriving (Show, Eq, Ord)
 
 -- | The workhorse data type in Mal.
 newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
@@ -58,7 +58,7 @@ newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
 -- | The hash-map data type in Mal.
 newtype MalMap = MkMalMap (Map MalType MalType) deriving (Show, Eq, Ord)
 
-instance MalListLike MalVec  where toList (MkMalVec vs) = V.toList vs
+instance MalListLike MalVector  where toList (MkMalVector vs) = V.toList vs
 instance MalListLike MalList where toList (MkMalList xs) = xs
 instance MalListLike MalMap where
     toList (MkMalMap m) = M.foldlWithKey' (\xs k v -> k:v:xs) [] m
@@ -95,7 +95,7 @@ data MalType =
         | MalBool Bool
         | MalNil
         | MalList MalList
-        | MalVec MalVec
+        | MalVec MalVector
         | MalMap MalMap
         | MalFunction MalFunction
         | MalTailRecFunction MalTailRecFunction
@@ -187,7 +187,7 @@ mkMalList = MalList . MkMalList
 
 -- | Make a Mal list from the provided list of 'MalType'.
 mkMalVector :: [MalType] -> MalType
-mkMalVector = MalVec . MkMalVec . V.fromList
+mkMalVector = MalVec . MkMalVector . V.fromList
 
 -- | Make a Mal list from the provided list of 'MalType'.
 -- Each pair of successive elements is a key-value pair in the resulting map.

@@ -61,7 +61,7 @@ readList :: Parser MalType
 readList = MalList <$> readListLike "list" "(" ")" MkMalList
 
 readVector :: Parser MalType
-readVector = MalVec <$> readListLike "vector" "[" "]" (MkMalVec . V.fromList)
+readVector = MalVec <$> readListLike "vector" "[" "]" (MkMalVector . V.fromList)
 
 readMap :: Parser MalType
 readMap = MalMap <$> readListLike "hash-map" "{" "}" (MkMalMap . M.fromList . pairs)

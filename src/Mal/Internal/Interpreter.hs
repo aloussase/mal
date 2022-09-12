@@ -40,7 +40,7 @@ evalIfStmt condition trueBranch falseBranch = do
 evalAst :: MalType -> Interpreter
 evalAst (MalSymbol s) = asks interpreterScope >>= liftIO . flip Env.find s
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
-evalAst (MalVec (MkMalVec vs)) = mkMalVector <$> traverse eval' (V.toList vs)
+evalAst (MalVec (MkMalVector vs)) = mkMalVector <$> traverse eval' (V.toList vs)
 evalAst (MalMap (MkMalMap m)) = do
   let (ks, vs) = unzip . M.toList $ m
   vs' <- traverse eval' vs
