@@ -12,6 +12,7 @@ data MalError =
         | InvalidArgs String [MalType] (Maybe String)   -- ^ Signaled when a function receives invalid arguments.
         | NotAFunction MalType                          -- ^ Signaled when the interpreter tries to call a non-functions.
         | InvalidSignature String                       -- ^ Signaled when a function is defined with an invalid function.
+        | FileNotFound FilePath
     deriving (Eq)
 
 instance Exception MalError
@@ -19,6 +20,8 @@ instance Exception MalError
 instance Show MalError where
     show (ParseError s) = s
     show (UnboundSymbol s) = "unbound symbol: " <> s
+
+    show (FileNotFound filename) = "file not found: " <> filename
 
     show (InvalidArgs f args Nothing) = "invalid arguments for function " <> f <> ": " <> show args
     show (InvalidArgs f args (Just reason)) = mconcat [ "invalid arguments for function ", f, ": ", show args, "\n"

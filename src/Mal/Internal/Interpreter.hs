@@ -160,4 +160,4 @@ evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body para
         functionScope = Env.empty { scopeParent = Just env, scopeBindings = argBindings }
     liftIO $ newIORef functionScope >>= flip (eval Nothing) body
 evalCall (MalList (MkMalList (x:_))) = liftIO $ throwIO (NotAFunction x)
-evalCall _ = undefined
+evalCall ast = pure ast

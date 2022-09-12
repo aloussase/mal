@@ -1,5 +1,7 @@
--- |
--- The builtin functions of the Mal programming language.
+{-# LANGUAGE ScopedTypeVariables #-}
+{-|
+    The builtin functions of the Mal programming language.
+-}
 module Mal.Internal.Builtin
   ( builtins,
 
@@ -50,7 +52,8 @@ import           Mal.Types
 import           Prelude                    hiding (quot)
 
 import           Control.Concurrent.STM     (atomically, readTVarIO, swapTVar)
-import           Control.Exception          (throw, throwIO)
+import           Control.Exception          (SomeException, catch, throw,
+                                             throwIO)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')
