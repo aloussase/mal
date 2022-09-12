@@ -16,6 +16,7 @@ module Mal.Types (
     -- * Env things
     , MalEnv (..)
     , MalScope (..)
+    , MalFilename (..)
     -- * Smart constructors
     , mkMalBool
     , mkMalFunction
@@ -120,9 +121,12 @@ data MalType =
 
 -- Env things
 
+newtype MalFilename = MkMalFilename FilePath
+
 -- | The environment for the interpreter.
-newtype MalEnv = MkMalEnv
-    { scope :: IORef MalScope
+data MalEnv = MkMalEnv
+    { interpreterScope    :: IORef MalScope
+    , interpreterFilename :: MalFilename
     }
 
 -- | A scope where bindings run happily in the meadows.

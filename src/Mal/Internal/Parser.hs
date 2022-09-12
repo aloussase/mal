@@ -85,8 +85,12 @@ readForm = label "valid mal expression" $ lexeme
     (choice [readComment, readList, readAtom, readVector, readMap])
 
 -- | 'parse' parses the provided Mal program as a @String@ and returns the resulting AST.
-parse :: String -> MalType
-parse input =
-    case runParser (space >> readForm <* eof) "<repl>" (T.pack input) of
-        Left err     -> throw $ ParseError (errorBundlePretty err)
-        Right result -> result
+parse :: Maybe MalFilename -> String -> MalType
+parse filename input =
+    let filename' = case filename of
+                        Just (MkMalFilename f) -> f
+                        _                      -> "<repl>"
+     in
+        case runParser (space >> readForm <* eof) filename' (T.pack input) of
+          Left err     -> throw $ ParseError (errorBundlePretty err)
+          Right result -> result

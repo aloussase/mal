@@ -32,25 +32,24 @@ isTruthy = not . isFalsey
 evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
 evalIfStmt condition trueBranch falseBranch = do
     result <- eval' condition
-    currentScope <- asks scope
-    if isTruthy result then liftIO $ eval currentScope trueBranch
-    else liftIO $ eval currentScope (fromMaybe mkMalNil falseBranch)
+    currentScope <- asks interpreterScope
+    if isTruthy result then liftIO $ eval Nothing currentScope trueBranch
+    else liftIO $ eval Nothing currentScope (fromMaybe mkMalNil falseBranch)
 
 evalAst :: MalType -> Interpreter
-evalAst (MalAtom (MalSymbol s))  = asks scope >>= liftIO . flip Env.find s
+evalAst (MalAtom (MalSymbol s))  = asks interpreterScope >>= liftIO . flip Env.find s
 evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
 evalAst (MalVec (MkMalVec vs))   = mkMalVector <$> traverse eval' (V.toList vs)
 evalAst (MalMap (MkMalMap m))    = do
     let (ks, vs) = unzip . M.toList $ m
     vs' <- traverse eval' vs
     pure $ MalMap (MkMalMap (M.fromList (zip ks vs')))
-
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
 eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name), val])) = do
     evaledVal   <- eval' val
-    globalScope <- asks scope >>= liftIO . Env.getRoot
+    globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
     liftIO $ modifyIORef' globalScope (Env.insert name evaledVal)
     pure mkMalNil
 
@@ -67,15 +66,15 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "def!"), MalAtom (MalSymbol name),
 -- be implementing.
 --
 eval' (MalList (MkMalList (MalAtom (MalSymbol "let*"):MalList (MkMalList bindings):body))) = do
-    currentScope <- asks scope
+    currentScope <- asks interpreterScope
     letScope <- liftIO $ newIORef Env.empty { scopeParent = Just currentScope }
-    letBindings <- liftIO $ forM (pairs bindings) (\(MalAtom (MalSymbol k), v) -> (,) k <$> eval letScope v)
+    letBindings <- liftIO $ forM (pairs bindings) (\(MalAtom (MalSymbol k), v) -> (,) k <$> eval Nothing letScope v)
 
     liftIO $ modifyIORef' letScope (\s -> s { scopeBindings = M.fromList letBindings } )
 
     -- This let's us do TCO. The alternative would be to do
     -- >>> eval' body
-    liftIO $ eval letScope (mkMalList $ mkMalSymbol "do" : body)
+    liftIO $ eval Nothing letScope (mkMalList $ mkMalSymbol "do" : body)
 
 -- Do special form
 eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) =
@@ -83,8 +82,8 @@ eval' (MalList (MkMalList (MalAtom (MalSymbol "do"):body))) =
     else do
         -- I have to do @eval'@ here because evalAst does not recognize special forms.
         mapM_ eval' (init body)
-        currentScope <- asks scope
-        liftIO $ eval currentScope (last body)
+        currentScope <- asks interpreterScope
+        liftIO $ eval Nothing currentScope (last body)
 
 -- If expression
 eval' (MalList (MkMalList [MalAtom (MalSymbol "if"), condition, trueBranch])) =
@@ -97,15 +96,15 @@ eval' (MalList (MkMalList [MalAtom (MalSymbol "fn*"), MalList (MkMalList params)
     let closure :: [MalType] -> Interpreter
         closure args = do
             -- Create a new environment from the outer scope and bind the function arguments in it.
-            currentScope <- asks scope
+            currentScope <- asks interpreterScope
             closureScope <- liftIO $ newIORef Env.empty { scopeParent = Just currentScope
                                                         , scopeBindings = M.fromList $ mkFnBindings params args
                                                         }
 
             -- Eval the function body in the new environment.
-            liftIO $ eval closureScope body
+            liftIO $ eval Nothing closureScope body
 
-    currentScope <- asks scope
+    currentScope <- asks interpreterScope
     let (MalFunction function) = mkMalFunction "lambda" closure
     pure $ mkMalTailRecFunction body params currentScope function
 
@@ -125,23 +124,23 @@ mkFnBindings =  go []
 
 -- | 'eval' evaluates the provided 'MalType', using @scope@ as the initial
 -- environment.
-eval :: IORef MalScope -> MalType -> IO MalType
-eval initialScope ast =  do
+eval :: Maybe MalFilename -> IORef MalScope -> MalType -> IO MalType
+eval filename initialScope ast =  do
     env <- readIORef initialScope
 
     when (env == Env.empty) $ do
         topLevelScope <- newIORef builtins
         modifyIORef' initialScope (\s -> s { scopeParent = Just topLevelScope })
 
-    runReaderT (eval' ast) (MkMalEnv initialScope)
+    runReaderT (eval' ast) (MkMalEnv initialScope $ fromMaybe (MkMalFilename "<repl>") filename)
 
     where
         builtins = Env.insert "eval" (mkMalFunction "eval" builtinEval) B.builtins
 
         builtinEval :: [MalType] -> Interpreter
         builtinEval [ast'] = do
-            globalScope <- asks scope >>= liftIO . Env.getRoot
-            liftIO $ eval globalScope ast'
+            globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
+            liftIO $ eval Nothing globalScope ast'
         builtinEval xs = liftIO $ throwIO (InvalidArgs "eval" xs $ Just "expected a single argument")
 
 -- | 'evalCall' evaluates a function call.
@@ -159,6 +158,6 @@ evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func):args))) = func 
 evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body params env _func):args))) = do
     let argBindings = M.fromList $ mkFnBindings params args
         functionScope = Env.empty { scopeParent = Just env, scopeBindings = argBindings }
-    liftIO $ newIORef functionScope >>= flip eval body
+    liftIO $ newIORef functionScope >>= flip (eval Nothing) body
 evalCall (MalList (MkMalList (x:_))) = liftIO $ throwIO (NotAFunction x)
 evalCall _ = undefined

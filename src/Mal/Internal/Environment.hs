@@ -17,7 +17,7 @@ import           Control.Exception (throwIO)
 import           Data.IORef        (IORef, readIORef)
 import           Data.Map          (Map, (!?))
 import qualified Data.Map          as M
-import           Data.Maybe        (isJust, maybe)
+import           Data.Maybe        (isJust)
 
 -- | 'empty' creates a new empty 'MalScope'.
 empty :: MalScope

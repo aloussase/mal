@@ -6,9 +6,11 @@ import           Control.Exception (evaluate)
 import           Test.Hspec
 
 
+parse' = parse (Just $ Mal.MkMalFilename "<tests>")
+
 runWithScope s = do
     scope <- Mal.emptyScope
-    run scope s
+    run (Just $ Mal.MkMalFilename "<tests>") scope s
 
 builtinsSpec :: Spec
 builtinsSpec = describe "builtins" $ do
@@ -138,15 +140,15 @@ evaluatorSpec = describe "Mal.run" $ do
 parserSpec :: Spec
 parserSpec = describe "Mal.parse" $ do
     it "can parse atoms" $ do
-        parse "1" `shouldBe`  mkMalNumber 1
-        parse "\"Hello\"" `shouldBe` mkMalString "Hello"
-        parse "true"  `shouldBe` mkMalBool True
-        parse "false"  `shouldBe` mkMalBool False
-        parse "nil" `shouldBe` mkMalNil
+        parse' "1" `shouldBe`  mkMalNumber 1
+        parse' "\"Hello\"" `shouldBe` mkMalString "Hello"
+        parse' "true"  `shouldBe` mkMalBool True
+        parse' "false"  `shouldBe` mkMalBool False
+        parse' "nil" `shouldBe` mkMalNil
 
-    it "can parse empty lists" $ parse "()" `shouldBe`  mkMalList []
+    it "can parse empty lists" $ parse' "()" `shouldBe`  mkMalList []
 
-    it "can parse non-empty lists" $ parse "(1 \"Hello\" true false nil some-symbol)"
+    it "can parse non-empty lists" $ parse' "(1 \"Hello\" true false nil some-symbol)"
         `shouldBe`
          mkMalList [ mkMalNumber 1
                    , mkMalString "Hello"
@@ -156,7 +158,7 @@ parserSpec = describe "Mal.parse" $ do
                    , mkMalSymbol "some-symbol"
                    ]
 
-    it "can parse nested lists" $ parse "(((1 (\"hello\" true))))"
+    it "can parse nested lists" $ parse' "(((1 (\"hello\" true))))"
         `shouldBe`
          mkMalList [ mkMalList [ mkMalList [ mkMalNumber 1
                                            , mkMalList [mkMalString "hello", mkMalBool True]
@@ -165,13 +167,13 @@ parserSpec = describe "Mal.parse" $ do
                    ]
 
     it "can parse maps" $
-        parse "{\"hello\" world}" `shouldBe`  mkMalMap [mkMalString "hello", mkMalSymbol "world"]
+        parse' "{\"hello\" world}" `shouldBe`  mkMalMap [mkMalString "hello", mkMalSymbol "world"]
 
     it "ignores extra elements when parsing maps" $
-        parse "{\"hello\" world 69}" `shouldBe`  mkMalMap [mkMalString "hello", mkMalSymbol "world"]
+        parse' "{\"hello\" world 69}" `shouldBe`  mkMalMap [mkMalString "hello", mkMalSymbol "world"]
 
     it "fails on unterminated string literals" $
-        evaluate (parse "\"Hello") `shouldThrow` anyException
+        evaluate (parse' "\"Hello") `shouldThrow` anyException
 
 main :: IO ()
 main = hspec  $ parserSpec >> evaluatorSpec >> builtinsSpec

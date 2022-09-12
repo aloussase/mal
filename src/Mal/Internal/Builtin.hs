@@ -52,7 +52,7 @@ import           Prelude                    hiding (quot)
 import           Control.Concurrent.STM     (atomically, readTVarIO, swapTVar)
 import           Control.Exception          (throw, throwIO)
 import           Control.Monad.IO.Class     (liftIO)
-import           Control.Monad.Trans.Reader (ReaderT)
+import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')
 import qualified Data.Text                  as T
 import           System.IO                  (readFile')
@@ -202,7 +202,9 @@ str =
 
 -- | 'readString' parses the provided string into a @MalType@.
 readString :: BuiltinFunction
-readString [MalAtom (MalString form)] = pure . parse $ form
+readString [MalAtom (MalString form)] = do
+    filename <- asks interpreterFilename
+    pure . parse (Just filename) $ form
 readString xs = throw $ InvalidArgs "read-string" xs (Just "expected a string")
 
 -- IO functions

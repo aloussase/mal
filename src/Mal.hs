@@ -38,10 +38,13 @@ import           System.IO                (readFile')
 emptyScope :: IO (IORef MalScope)
 emptyScope =  newIORef Env.empty
 
+coreFile :: FilePath
+coreFile = "mal/core.mal"
+
 -- | Execute the provided Mal program, using @scope@ as the initial interpreter state.
-run :: IORef MalScope -> String -> IO MalType
-run initialScope ast = do
+run :: Maybe MalFilename -> IORef MalScope -> String -> IO MalType
+run filename initialScope ast = do
     -- FIXME: Use Text for parsing instead of String.
-    core <- readFile' "mal/core.mal"
-    void $ eval initialScope (parse core)
-    eval initialScope (parse ast)
+    core <- readFile' coreFile
+    void $ eval (Just (MkMalFilename coreFile)) initialScope (parse (Just $ MkMalFilename coreFile) core)
+    eval filename initialScope (parse filename ast)
