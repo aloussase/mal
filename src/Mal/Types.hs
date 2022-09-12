@@ -5,7 +5,7 @@ module Mal.Types (
     -- * Type class for types that can convert to @MalType@
       MalListLike (..)
     -- * Mal data types
-    , MalAtomicCell (..)
+    , MalAtom (..)
     , MalFunction (..)
     , MalList (..)
     , MalMap (..)
@@ -45,22 +45,21 @@ import qualified Data.Vector                as V
 import           System.IO.Unsafe           (unsafePerformIO)
 
 
--- Type class for types that can convert to @MalType@
-
 -- | A class for @MalType@s that can naturally convert to lists.
-class MalListLike a where
-    toList :: a -> [MalType]
+class MalListLike a where toList :: a -> [MalType]
 
 -- Mal data types
 
 -- | The vector data type in Mal.
 newtype MalVec = MkMalVec (Vector MalType) deriving (Show, Eq, Ord)
+
 -- | The workhorse data type in Mal.
 newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
+
 -- | The hash-map data type in Mal.
 newtype MalMap = MkMalMap (Map MalType MalType) deriving (Show, Eq, Ord)
 
-instance MalListLike MalVec where toList (MkMalVec vs) = V.toList vs
+instance MalListLike MalVec  where toList (MkMalVec vs) = V.toList vs
 instance MalListLike MalList where toList (MkMalList xs) = xs
 instance MalListLike MalMap where
     toList (MkMalMap m) = M.foldlWithKey' (\xs k v -> k:v:xs) [] m
@@ -87,16 +86,13 @@ data MalTailRecFunction = MkMalTailRecFunction
     }
     deriving (Eq)
 
-instance Ord MalTailRecFunction where
-    compare x y = compare (tailRecFunction x) (tailRecFunction y)
+instance Ord MalTailRecFunction where compare = compare `on` tailRecFunction
 
 -- | The basic unit of state in Mal, inspired by Clojure atoms.
-newtype MalAtomicCell = MkMalAtom (TVar MalType)
-    deriving (Eq)
+newtype MalAtom = MkMalAtom (TVar MalType) deriving (Eq)
 
-instance Show MalAtomicCell where
-    show (MkMalAtom ref) = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
-instance Ord MalAtomicCell where compare = error "atoms are not comparable"
+instance Show MalAtom where show (MkMalAtom ref) = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
+instance Ord MalAtom  where compare = error "atoms are not comparable"
 
 -- | A data type in the Mal language.
 data MalType =
@@ -110,7 +106,7 @@ data MalType =
         | MalMap MalMap
         | MalFunction MalFunction
         | MalTailRecFunction MalTailRecFunction
-        | MalAtomicCell MalAtomicCell
+        | MalAtomicCell MalAtom
     deriving (Eq, Ord)
 
 instance IsString MalType where fromString = MalSymbol
@@ -179,19 +175,19 @@ mkMalAtom :: (MonadIO m) => MalType -> m MalType
 mkMalAtom t = MalAtomicCell . MkMalAtom <$> liftIO (newTVarIO t)
 
 instance Show MalType where
-    show (MalSymbol s)   = s
-    show (MalNumber n)   = show n
-    show (MalString s)   = mconcat [ "\"", s, "\""]
-    show (MalBool True)  = "#t"
-    show (MalBool False) = "#f"
-    show MalNil          = "nil"
-    show (MalList xs)    = showListLike "(" ")" xs
-    show (MalVec vs)     = showListLike "[" "]" vs
-    show (MalMap m)      = showListLike "{" "}" m
-    show (MalFunction f) = show f
+    show (MalSymbol s)       = s
+    show (MalNumber n)       = show n
+    show (MalString s)       = mconcat [ "\"", s, "\""]
+    show (MalBool True)      = "#t"
+    show (MalBool False)     = "#f"
+    show MalNil              = "nil"
+    show (MalList xs)        = showListLike "(" ")" xs
+    show (MalVec vs)         = showListLike "[" "]" vs
+    show (MalMap m)          = showListLike "{" "}" m
+    show (MalFunction f)     = show f
+    show (MalAtomicCell ref) = show ref
     show (MalTailRecFunction (MkMalTailRecFunction body params _ _)) =
         mconcat [ "<fn: "
                 , "args: ", show params, "\n"
                 , "body: ", show body,   "\n>"
                 ]
-    show (MalAtomicCell ref) = show ref
