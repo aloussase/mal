@@ -9,7 +9,7 @@ import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Util          (pairs)
 import           Mal.Types
 
-import           Control.Exception          (throw, throwIO)
+import           Control.Exception          (catch, throw, throwIO)
 import           Control.Monad              (forM, when)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
@@ -48,11 +48,35 @@ evalAst (MalMap (MkMalMap m)) = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
+
+--- def!
 eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
   evaledVal <- eval' val
   globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
-  liftIO $ modifyIORef' globalScope (Env.insert name evaledVal)
+  let value = case evaledVal of
+                -- TODO: Use lenses.
+                (MalTailRecFunction
+                    tailRec@MkMalTailRecFunction { tailRecFunction = func }) ->
+                        MalTailRecFunction tailRec { tailRecFunction = func { fName = name } }
+                _                  -> evaledVal
+  liftIO $ modifyIORef' globalScope (Env.insert name value)
   pure mkMalNil
+
+-- defmacro!
+eval' (MalList (MkMalList ["defmacro!", MalSymbol name, val])) = do
+    evaledVal <- eval' val
+    case evaledVal of
+        (MalTailRecFunction tailRecFunc@MkMalTailRecFunction { tailRecFunction = func } ) -> do
+            globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
+            liftIO $ modifyIORef' globalScope
+                                  (Env.insert name (MalTailRecFunction tailRecFunc
+                                                        { tailRecFunction =
+                                                            func { fName = name
+                                                                 , fIsMacro = True
+                                                                 }
+                                                        }))
+            pure MalNil
+        other -> liftIO $ throwIO (InvalidArgs "defmacro!" [other] Nothing)
 
 -- let special form
 --
@@ -99,26 +123,29 @@ eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
       closure args = do
         -- Create a new environment from the outer scope and bind the function arguments in it.
         currentScope <- asks interpreterScope
-        closureScope <-
-          liftIO $
-            newIORef
-              Env.empty
-                { scopeParent = Just currentScope,
-                  scopeBindings = M.fromList $ mkFnBindings "lambda" params args
-                }
+        closureScope <- liftIO $ newIORef Env.empty
+                                            { scopeParent = Just currentScope,
+                                              scopeBindings = M.fromList $ mkFnBindings "lambda" params args
+                                            }
 
         -- Eval the function body in the new environment.
         liftIO $ eval Nothing closureScope body
 
   currentScope <- asks interpreterScope
-  let (MalFunction function) = mkMalFunction "lambda" closure
-  pure $ mkMalTailRecFunction body params currentScope function
+  pure $ mkMalTailRecFunction body params currentScope
+                              (MkMalFunction { fName = "lambda"
+                                             , fBody = closure
+                                             , fIsMacro = False
+                                             })
 
 -- quote special form
 eval' (MalList (MkMalList ["quote", mt])) = pure mt
 
 -- quasiquote special form
 eval' (MalList (MkMalList ("quasiquote":ast))) = B.quasiquote ast >>= eval'
+
+-- macroexpand
+eval' (MalList (MkMalList ["macroexpand", ast])) = asks interpreterScope >>= flip macroexpand ast
 
 -- Here we probably have a function call.
 eval' xs@(MalList _) = evalAst xs >>= evalCall
@@ -136,7 +163,8 @@ eval filename initialScope ast = do
     topLevelScope <- newIORef builtins
     modifyIORef' initialScope (\s -> s {scopeParent = Just topLevelScope})
 
-  runReaderT (eval' ast) (MkMalEnv initialScope $ fromMaybe (MkMalFilename "<repl>") filename)
+  runReaderT (macroexpand initialScope ast >>= eval')
+             (MkMalEnv initialScope $ fromMaybe (MkMalFilename "<repl>") filename)
   where
     builtins = Env.insert "eval" (mkMalFunction "eval" builtinEval) B.builtins
 
@@ -156,7 +184,7 @@ eval filename initialScope ast = do
 --
 -- For anything else, throw an error.
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction (MkMalFunction _ func) : args))) = func args
+evalCall (MalList (MkMalList (MalFunction MkMalFunction { fBody = func }  : args))) = func args
 evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body params env func) : args))) = do
   let argBindings = M.fromList $ mkFnBindings (fName func) params args
       functionScope = Env.empty {scopeParent = Just env, scopeBindings = argBindings}
@@ -187,4 +215,29 @@ mkFnBindings funcName xs ys =
     isSymbol :: String -> MalType -> Bool
     isSymbol sym (MalSymbol s) = sym == s
     isSymbol _ _               =  False
+
+
+-- | 'isMacroCall' takes the current scope and an AST and returns true if the
+-- first element of the AST corresponds to a function that has the @fIsMacro@
+-- attribute set to true, or false otherwise.
+isMacroCall :: IORef MalScope -> MalType -> IO Bool
+isMacroCall currentScope (MalList (MkMalList (MalSymbol sym : _ ))) = do
+    func <- catch (Env.find currentScope sym) (\(_ :: MalError) -> pure mkMalNil)
+    case func of
+        (MalTailRecFunction tailRec) -> pure $ fIsMacro (tailRecFunction tailRec)
+        _ -> pure False
+isMacroCall _ _                                                     = pure False
+
+-- | 'macroexpand' takes the current scope and and AST and recursively expands
+-- all of its macros.
+macroexpand :: IORef MalScope -> MalType -> Interpreter
+macroexpand currentScope ast@(MalList (MkMalList (MalSymbol sym : args))) = do
+    isMacro <- liftIO $ isMacroCall currentScope ast
+    if not isMacro then pure ast
+    else do
+        (MalTailRecFunction func) <- liftIO $ Env.find currentScope sym
+        let macroFunc = fBody (tailRecFunction func)
+        result <- macroFunc args
+        macroexpand currentScope result
+macroexpand _ ast = pure ast
 

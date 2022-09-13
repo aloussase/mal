@@ -68,8 +68,9 @@ showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, en
 
 -- | A function in Mal consists of the function's name and a closure.
 data MalFunction = MkMalFunction
-    { fName :: String
-    , fBody :: [MalType] -> ReaderT MalEnv IO MalType
+    { fName    :: String
+    , fBody    :: [MalType] -> ReaderT MalEnv IO MalType
+    , fIsMacro :: Bool
     }
 
 instance Show MalFunction where show f = mconcat ["<fn: ", fName f, ">"]
@@ -155,7 +156,7 @@ data MalScope = MkMalScope
 
 -- | Make a 'MalFunction' from the provided function name and closure.
 mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
-mkMalFunction name body = MalFunction $ MkMalFunction { fName = name, fBody = body }
+mkMalFunction name body = MalFunction $ MkMalFunction { fName = name, fBody = body, fIsMacro = False }
 
 mkMalTailRecFunction:: MalType -> [MalType] -> IORef MalScope -> MalFunction -> MalType
 mkMalTailRecFunction body params env function =

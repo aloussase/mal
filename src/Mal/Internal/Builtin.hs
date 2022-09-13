@@ -286,7 +286,7 @@ reset xs = liftIO $ throwIO (InvalidArgs "reset!" xs (Just "expected an atom and
 swap :: BuiltinFunction
 swap (
     MalAtom ref:
-    (MalTailRecFunction (MkMalTailRecFunction _ _ _ (MkMalFunction _ func))):
+    (MalTailRecFunction (MkMalTailRecFunction _ _ _ MkMalFunction { fBody = func })):
     xs
     ) = do
      oldVal <- liftIO $ readTVarIO ref

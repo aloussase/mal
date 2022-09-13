@@ -13,6 +13,35 @@ runWithScope s = do
     scope <- Mal.emptyScope
     run (Just $ Mal.MkMalFilename "<tests>") scope s
 
+macrosSpec :: Spec
+macrosSpec = describe "macros" $ do
+    it "trivial macros work" $ do
+        runWithScope "( do (defmacro! one (fn* () 1)) (one))" `shouldReturn` mkMalNumber 1
+
+    it "unless macro works" $ do
+        runWithScope "(do (defmacro! unless (fn* (pred a b) `(if ~pred ~b ~a))) (unless false 7 8) )"
+            `shouldReturn` mkMalNumber 7
+        runWithScope "(do (defmacro! unless (fn* (pred a b) `(if ~pred ~b ~a))) (unless true 7 8) )"
+            `shouldReturn` mkMalNumber 8
+        runWithScope "(do (defmacro! unless2 (fn* (pred a b) (list 'if (list 'not pred) a b)))  (unless2 false 7 8) )"
+            `shouldReturn` mkMalNumber 7
+
+    it "macroexpand works" $ do
+        runWithScope "(do (defmacro! one (fn* () 1)) (macroexpand (one)) )"
+            `shouldReturn` mkMalNumber 1
+        runWithScope "(do (defmacro! unless (fn* (pred a b) `(if ~pred ~b ~a))) (macroexpand (unless PRED A B)) )"
+            `shouldReturn` mkMalList ["if", "PRED", "B", "A"]
+
+    it "evauluation of macro result works" $ do
+        runWithScope "(do (defmacro! identity (fn* (x) x)) (let* (a 123) (macroexpand (identity a))) )" `shouldReturn` "a"
+        runWithScope "(do (defmacro! identity (fn* (x) x)) (let* (a 123) (identity a)) )" `shouldReturn` mkMalNumber 123
+
+    it "macros don't break the empty list" $
+        runWithScope "()" `shouldReturn` mkMalList []
+
+    it "macrs don't break quasiquote" $
+        runWithScope "`(1)" `shouldReturn` mkMalList [mkMalNumber 1]
+
 builtinsSpec :: Spec
 builtinsSpec = describe "builtins" $ do
     context "read-string" $ do
@@ -52,8 +81,7 @@ builtinsSpec = describe "builtins" $ do
                 mkMalList [mkMalNumber 1, mkMalNumber 2, mkMalNumber 3, mkMalNumber 4]
             runWithScope "(concat (concat))" `shouldReturn` mkMalList []
             runWithScope "(concat (list) (list))" `shouldReturn` mkMalList []
-            -- TODO: Make = work with things other than numbers.
-            -- runWithScope "(= () (concat))" `shouldReturn` mkMalBool True
+            runWithScope "(= () (concat))" `shouldReturn` mkMalBool True
 
 
 evaluatorSpec :: Spec
@@ -70,7 +98,7 @@ evaluatorSpec = describe "Mal.run" $ do
 
         it "can evaluate expression nested in hash maps" $ do
             runWithScope "{hello (* 3 2) world (+ 5 (* 2 1))}"
-                `shouldReturn` mkMalMap [mkMalSymbol "hello", mkMalNumber 6, mkMalSymbol "world", mkMalNumber 7]
+                `shouldReturn` mkMalMap ["hello", mkMalNumber 6, "world", mkMalNumber 7]
 
     context "environment" $ do
         context "def!" $ do
@@ -177,7 +205,7 @@ evaluatorSpec = describe "Mal.run" $ do
                 runWithScope "(quasiquote nil)" `shouldReturn` mkMalNil
                 runWithScope "(quasiquote 7)" `shouldReturn` mkMalNumber 7
                 runWithScope "(quasiquote {\"a\" b})"
-                    `shouldReturn` mkMalMap [mkMalString "a", mkMalSymbol "b"]
+                    `shouldReturn` mkMalMap [mkMalString "a", "b"]
 
             it "works with lists" $ do
                 runWithScope "(quasiquote ())" `shouldReturn` mkMalList []
@@ -190,7 +218,7 @@ evaluatorSpec = describe "Mal.run" $ do
                 runWithScope "(quasiquote (unquote 7))" `shouldReturn` mkMalNumber 7
                 runWithScope "(do (def! a 8) (quasiquote (unquote a)))" `shouldReturn` mkMalNumber 8
                 runWithScope "(do (def! a 8) (quasiquote (1 a 3)) )"
-                    `shouldReturn` mkMalList [mkMalNumber 1, mkMalSymbol "a", mkMalNumber 3]
+                    `shouldReturn` mkMalList [mkMalNumber 1, "a", mkMalNumber 3]
                 runWithScope "(quasiquote ((unquote 1) (unquote 2)))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
 
             it "works in let*" $
@@ -223,7 +251,7 @@ parserSpec = describe "Mal.parse" $ do
                    , mkMalBool True
                    , mkMalBool False
                    , mkMalNil
-                   , mkMalSymbol "some-symbol"
+                   , "some-symbol"
                    ]
 
     it "can parse nested lists" $ parse' "(((1 (\"hello\" true))))"
@@ -235,13 +263,13 @@ parserSpec = describe "Mal.parse" $ do
                    ]
 
     it "can parse maps" $
-        parse' "{\"hello\" world}" `shouldBe`  mkMalMap [mkMalString "hello", mkMalSymbol "world"]
+        parse' "{\"hello\" world}" `shouldBe`  mkMalMap [mkMalString "hello", "world"]
 
     it "ignores extra elements when parsing maps" $
-        parse' "{\"hello\" world 69}" `shouldBe`  mkMalMap [mkMalString "hello", mkMalSymbol "world"]
+        parse' "{\"hello\" world 69}" `shouldBe`  mkMalMap [mkMalString "hello", "world"]
 
     it "fails on unterminated string literals" $
         evaluate (parse' "\"Hello") `shouldThrow` anyException
 
 main :: IO ()
-main = hspec  $ parserSpec >> evaluatorSpec >> builtinsSpec
+main = hspec  $ parserSpec >> evaluatorSpec >> builtinsSpec >> macrosSpec
