@@ -8,6 +8,16 @@
   (fn* (f)
         (eval (read-string (slurp f)))))
 
+(defmacro! unless
+  (fn* (condition body)
+       `(if (not ~condition)
+          ~body)))
+
+(defmacro! when
+  (fn* (condition body)
+       `(if ~condition
+          ~body)))
+
 (defmacro! cond
   (fn* (& xs)
        (if (> (count xs) 0)
