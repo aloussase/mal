@@ -99,7 +99,7 @@ eval' (MalList (MkMalList ("let*": MalList (MkMalList bindings) : body))) = do
 
   -- This let's us do TCO. The alternative would be to do
   -- >>> eval' body
-  liftIO $ eval Nothing letScope (mkMalList $ mkMalSymbol "do" : body)
+  liftIO $ eval Nothing letScope (mkMalList $ "do" : body)
 
 -- Do special form
 eval' (MalList (MkMalList ("do" : body))) =
@@ -228,8 +228,17 @@ isMacroCall currentScope (MalList (MkMalList (MalSymbol sym : _ ))) = do
         _ -> pure False
 isMacroCall _ _                                                     = pure False
 
--- | 'macroexpand' takes the current scope and and AST and recursively expands
--- all of its macros.
+-- | 'macroexpand' takes the current scope and an AST and recursively expands
+-- all of its macros. It works like this:
+--
+-- If AST is a macro call do the following:
+--
+--  1. Get the corresponding macro function from the environment
+--  2. Call the function with the rest of the ast as its arguments
+--  3. Recursively call macroexpand on the result
+--
+-- Else, if AST is not a macro call just return it as is.
+--
 macroexpand :: IORef MalScope -> MalType -> Interpreter
 macroexpand currentScope ast@(MalList (MkMalList (MalSymbol sym : args))) = do
     isMacro <- liftIO $ isMacroCall currentScope ast

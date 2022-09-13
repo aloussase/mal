@@ -31,6 +31,9 @@ module Mal.Internal.Builtin
     count,
     cons,
     concat,
+    nth,
+    first,
+    rest,
 
     -- * IO functions
     slurp,
@@ -86,6 +89,9 @@ builtins =
         ("count", count),
         ("cons", cons),
         ("concat", concat'),
+        ("nth", nth),
+        ("first", first),
+        ("rest", rest),
 
         ("=", eq),
         ("<", lessThan),
@@ -184,10 +190,35 @@ concat' :: BuiltinFunction
 concat' =  pure . mkMalList . flatten []
     where
         flatten :: [MalType] -> [MalType] -> [MalType]
-        flatten acc (MalList (MkMalList xs):rest) = flatten (acc ++ xs) rest
-        flatten acc (MalVec (MkMalVector vs):rest) = flatten (acc ++ V.toList vs) rest
+        flatten acc (MalList (MkMalList xs):rest') = flatten (acc ++ xs) rest'
+        flatten acc (MalVec (MkMalVector vs):rest') = flatten (acc ++ V.toList vs) rest'
         flatten acc []                            = acc
         flatten _ xs = throw (InvalidArgs "concat" xs $ Just "expected lists")
+
+-- | 'nth' returns the element at the specified position in the provided list or
+-- vector. Throws IndexOutOfBounds.
+nth :: BuiltinFunction
+nth [MalList (MkMalList xs), MalNumber idx] =
+    if idx >= length xs then liftIO $ throwIO (IndexOutOfBounds idx $ length xs)
+    else pure $ xs !! idx
+nth [MalVec (MkMalVector vs), MalNumber idx] =
+    if idx >= V.length vs then liftIO $ throwIO (IndexOutOfBounds idx $ V.length vs)
+    else pure (vs V.! idx)
+nth xs = liftIO $ throwIO (InvalidArgs "nth" xs $ Just "expected a list or a vector")
+
+-- | 'first' returns the first element of the provided list or vector, or nil if they
+-- are empty.
+first :: BuiltinFunction
+first [MalList (MkMalList xs)] = pure $ if null xs then mkMalNil else head xs
+first [MalVec (MkMalVector vs)] = pure $ if V.null vs then mkMalNil else V.head vs
+first xs = liftIO $ throwIO (InvalidArgs "first" xs $ Just "expected a list or a vector")
+
+-- | 'rest' returns all but the first element of the provided list or vector, or nil if they
+-- are empty.
+rest :: BuiltinFunction
+rest [MalList (MkMalList xs)] = pure $ if null xs then mkMalList [] else mkMalList $ tail xs
+rest [MalVec (MkMalVector vs)] = pure $ if V.null vs then mkMalList [] else MalVec $ MkMalVector (V.tail vs)
+rest xs = liftIO $ throwIO (InvalidArgs "rest" xs $ Just "expected a list or a vector")
 
 -- Logic functions
 
@@ -308,18 +339,18 @@ quasiquote [MalList (MkMalList ["unquote", ast])] = pure ast
 quasiquote [MalList (MkMalList ast)] = go ast
     where
         go :: BuiltinFunction
-        go (MalList (MkMalList ["splice-unquote", elt]):rest) = do
-            result <- go rest
+        go (MalList (MkMalList ["splice-unquote", elt]):rest') = do
+            result <- go rest'
             -- This assumes that elt will eventually resolve to a list.
-            pure $ mkMalList [ mkMalSymbol "concat", elt, result]
+            pure $ mkMalList ["concat", elt, result]
         go (elt:ys) = do
             result <- quasiquote [elt]  -- Quasiquote elt
-            rest <- go ys               -- Process the rest
-            pure $ mkMalList [mkMalSymbol "cons", result, rest]
+            rest' <- go ys               -- Process the rest
+            pure $ mkMalList ["cons", result, rest']
         -- If the ast is empty just return it as is.
         go [] = pure $ mkMalList []
-quasiquote [sym@(MalSymbol _)] = pure $ mkMalList [mkMalSymbol "quote", sym]
-quasiquote [m@(MalMap _)] = pure $ mkMalList [mkMalSymbol "quote", m]
+quasiquote [sym@(MalSymbol _)] = pure $ mkMalList ["quote", sym]
+quasiquote [m@(MalMap _)] = pure $ mkMalList ["quote", m]
 quasiquote [ast]                                                      = pure ast
 quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
 

@@ -13,6 +13,15 @@ runWithScope s = do
     scope <- Mal.emptyScope
     run (Just $ Mal.MkMalFilename "<tests>") scope s
 
+coreSpec :: Spec
+coreSpec = describe "core lib" $ do
+    it "cond works" $ do
+        runWithScope "(macroexpand (cond))" `shouldReturn` mkMalNil
+        runWithScope "(cond)" `shouldReturn` mkMalNil
+        runWithScope "(macroexpand (cond X Y))" `shouldReturn` mkMalList ["if", "X", "Y", mkMalList ["cond"]]
+        runWithScope "(cond false 7 false 8 \"else\" 9)" `shouldReturn` mkMalNumber 9
+        runWithScope "(cond false 7 false 8 false 9)" `shouldReturn` mkMalNil
+
 macrosSpec :: Spec
 macrosSpec = describe "macros" $ do
     it "trivial macros work" $ do
@@ -39,7 +48,7 @@ macrosSpec = describe "macros" $ do
     it "macros don't break the empty list" $
         runWithScope "()" `shouldReturn` mkMalList []
 
-    it "macrs don't break quasiquote" $
+    it "macros don't break quasiquote" $
         runWithScope "`(1)" `shouldReturn` mkMalList [mkMalNumber 1]
 
 builtinsSpec :: Spec
@@ -62,27 +71,40 @@ builtinsSpec = describe "builtins" $ do
             `shouldReturn`
             mkMalNumber 1
 
-    context "cons" $ do
-        it "works" $ do
-            runWithScope "(cons 1 (list))" `shouldReturn` mkMalList [mkMalNumber 1]
-            runWithScope "(cons 1 (list 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
-            runWithScope "(cons (list 1) (list 2 3))"
-                `shouldReturn`
-                mkMalList [ mkMalList [mkMalNumber 1]
-                          , mkMalNumber 2, mkMalNumber 3
-                          ]
+    it "cons works" $ do
+        runWithScope "(cons 1 (list))" `shouldReturn` mkMalList [mkMalNumber 1]
+        runWithScope "(cons 1 (list 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
+        runWithScope "(cons (list 1) (list 2 3))"
+            `shouldReturn`
+            mkMalList [ mkMalList [mkMalNumber 1]
+                        , mkMalNumber 2, mkMalNumber 3
+                        ]
 
-    context "concat" $ do
-        it "works" $ do
-            runWithScope "(concat)" `shouldReturn` mkMalList []
-            runWithScope "(concat (list 1 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
-            runWithScope "(concat (list 1 2) (list 3 4))"
-                `shouldReturn`
-                mkMalList [mkMalNumber 1, mkMalNumber 2, mkMalNumber 3, mkMalNumber 4]
-            runWithScope "(concat (concat))" `shouldReturn` mkMalList []
-            runWithScope "(concat (list) (list))" `shouldReturn` mkMalList []
-            runWithScope "(= () (concat))" `shouldReturn` mkMalBool True
+    it "concat works" $ do
+        runWithScope "(concat)" `shouldReturn` mkMalList []
+        runWithScope "(concat (list 1 2))" `shouldReturn` mkMalList [mkMalNumber 1, mkMalNumber 2]
+        runWithScope "(concat (list 1 2) (list 3 4))"
+            `shouldReturn`
+            mkMalList [mkMalNumber 1, mkMalNumber 2, mkMalNumber 3, mkMalNumber 4]
+        runWithScope "(concat (concat))" `shouldReturn` mkMalList []
+        runWithScope "(concat (list) (list))" `shouldReturn` mkMalList []
+        runWithScope "(= () (concat))" `shouldReturn` mkMalBool True
 
+    it "nth works" $ do
+        runWithScope "(nth (list 1) 0)" `shouldReturn` mkMalNumber 1
+        runWithScope "(nth (list 1 2) 1)" `shouldReturn` mkMalNumber 2
+        runWithScope "(nth (list 1 2 nil) 2)" `shouldReturn` mkMalNil
+        runWithScope "(def! x (nth (list 1 2) 2))" `shouldThrow` anyException
+
+    it "first works" $ do
+        runWithScope "(first (list))" `shouldReturn` mkMalNil
+        runWithScope "(first (list 6))" `shouldReturn` mkMalNumber 6
+        runWithScope "(first (list 7 8 9))" `shouldReturn` mkMalNumber 7
+
+    it "rest works" $ do
+        runWithScope "(rest (list))" `shouldReturn` mkMalList []
+        runWithScope "(rest (list 6))" `shouldReturn` mkMalList []
+        runWithScope "(rest (list 7 8 9))" `shouldReturn` mkMalList [mkMalNumber 8, mkMalNumber 9]
 
 evaluatorSpec :: Spec
 evaluatorSpec = describe "Mal.run" $ do
@@ -272,4 +294,9 @@ parserSpec = describe "Mal.parse" $ do
         evaluate (parse' "\"Hello") `shouldThrow` anyException
 
 main :: IO ()
-main = hspec  $ parserSpec >> evaluatorSpec >> builtinsSpec >> macrosSpec
+main = hspec  $ do
+    parserSpec
+    evaluatorSpec
+    builtinsSpec
+    macrosSpec
+    coreSpec
