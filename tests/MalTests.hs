@@ -22,6 +22,9 @@ coreSpec = describe "core lib" $ do
         runWithScope "(cond false 7 false 8 \"else\" 9)" `shouldReturn` mkMalNumber 9
         runWithScope "(cond false 7 false 8 false 9)" `shouldReturn` mkMalNil
 
+    it "fun works" $ do
+        runWithScope "(do (fun add (x y) (+ x y)) (add 1 2))" `shouldReturn` mkMalNumber 3
+
 macrosSpec :: Spec
 macrosSpec = describe "macros" $ do
     it "trivial macros work" $ do

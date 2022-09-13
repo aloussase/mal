@@ -18,6 +18,11 @@
        `(if ~condition
           ~body)))
 
+(defmacro! fun
+  (fn* (fun-name args-list & body)
+       `(def! ~fun-name
+          (fn* ~args-list ~@body))))
+
 (defmacro! cond
   (fn* (& xs)
        (if (> (count xs) 0)

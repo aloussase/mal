@@ -107,8 +107,8 @@ eval' (MalList (MkMalList ("do" : body))) =
     then pure mkMalNil
     else do
       -- I have to do @eval'@ here because evalAst does not recognize special forms.
-      mapM_ eval' (init body)
       currentScope <- asks interpreterScope
+      mapM_ eval' (init body)
       liftIO $ eval Nothing currentScope (last body)
 
 -- If expression
