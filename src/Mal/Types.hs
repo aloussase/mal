@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-|
  Types representing the ast and environment of Mal.
  -}
@@ -27,11 +28,20 @@ module Mal.Types (
     , mkMalSymbol
     , mkMalVector
     , mkMalAtom
+    -- * Lenses
+    , fName
+    , fBody
+    , fIsMacro
+    , tailRecBody
+    , tailRecFunction
+    , tailRecParams
+    , tailRecEnv
 ) where
 
 import           Mal.Internal.Util          (pairs)
 
 import           Control.Concurrent.STM     (TVar, newTVarIO, readTVarIO)
+import           Control.Lens.TH            (makeLenses)
 import           Control.Monad.IO.Class     (MonadIO (liftIO))
 import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.Function              (on)
@@ -66,28 +76,6 @@ instance MalListLike MalMap where
 showListLike :: (MalListLike a) => String -> String -> a -> String
 showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, end]
 
--- | A function in Mal consists of the function's name and a closure.
-data MalFunction = MkMalFunction
-    { fName    :: String
-    , fBody    :: [MalType] -> ReaderT MalEnv IO MalType
-    , fIsMacro :: Bool
-    }
-
-instance Show MalFunction where show f = mconcat ["<fn: ", fName f, ">"]
-instance Eq MalFunction   where (==) = (==) `on` fName
-instance Ord MalFunction  where compare = compare `on` fName
-
--- | A tail recursive function.
-data MalTailRecFunction = MkMalTailRecFunction
-    { tailRecBody     :: MalType        -- ^ The function's body
-    , tailRecParams   :: [MalType]      -- ^ The function's parameter list
-    , tailRecEnv      :: IORef MalScope -- ^ A reference to the interpreter scope at the time of function creation
-    , tailRecFunction :: MalFunction    -- ^ No idea LOL
-    }
-    deriving (Eq)
-
-instance Ord MalTailRecFunction where compare = compare `on` tailRecFunction
-
 -- | A data type in the Mal language.
 data MalType =
           MalSymbol String
@@ -102,6 +90,7 @@ data MalType =
         | MalTailRecFunction MalTailRecFunction
         | MalAtom (TVar MalType)
     deriving (Eq)
+
 
 instance IsString MalType where fromString = MalSymbol
 
@@ -151,12 +140,11 @@ data MalScope = MkMalScope
     , scopeBindings :: Map String MalType
     }
     deriving (Eq)
-
 -- Smart constructors
 
 -- | Make a 'MalFunction' from the provided function name and closure.
 mkMalFunction :: String -> ([MalType] -> ReaderT MalEnv IO MalType) -> MalType
-mkMalFunction name body = MalFunction $ MkMalFunction { fName = name, fBody = body, fIsMacro = False }
+mkMalFunction name body = MalFunction $ MkMalFunction { _fName = name, _fBody = body, _fIsMacro = False }
 
 mkMalTailRecFunction:: MalType -> [MalType] -> IORef MalScope -> MalFunction -> MalType
 mkMalTailRecFunction body params env function =
@@ -197,4 +185,32 @@ mkMalMap = MalMap . MkMalMap . M.fromList . pairs
 
 mkMalAtom :: (MonadIO m) => MalType -> m MalType
 mkMalAtom t = MalAtom <$> liftIO (newTVarIO t)
+
+-- Function types
+
+-- | A tail recursive function.
+data MalTailRecFunction = MkMalTailRecFunction
+    { _tailRecBody     :: MalType        -- ^ The function's body
+    , _tailRecParams   :: [MalType]      -- ^ The function's parameter list
+    , _tailRecEnv      :: IORef MalScope -- ^ A reference to the interpreter scope at the time of function creation
+    , _tailRecFunction :: MalFunction    -- ^ No idea LOL
+    }
+    deriving (Eq)
+
+instance Ord MalTailRecFunction where compare = compare `on` _tailRecFunction
+
+-- | A function in Mal consists of the function's name and a closure.
+data MalFunction = MkMalFunction
+    { _fName    :: String
+    , _fBody    :: [MalType] -> ReaderT MalEnv IO MalType
+    , _fIsMacro :: Bool
+    }
+
+instance Show MalFunction where show f = mconcat ["<fn: ", _fName f, ">"]
+instance Eq MalFunction   where (==) = (==) `on` _fName
+instance Ord MalFunction  where compare = compare `on` _fName
+
+makeLenses ''MalFunction
+makeLenses ''MalTailRecFunction
+
 

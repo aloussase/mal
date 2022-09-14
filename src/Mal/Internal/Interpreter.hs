@@ -3,7 +3,14 @@
 -- | A tree-walk interpreter for Mal programs.
 module Mal.Internal.Interpreter (eval) where
 
+import           Mal.Error
+import qualified Mal.Internal.Builtin       as B
+import qualified Mal.Internal.Environment   as Env
+import           Mal.Internal.Util          (pairs)
+import           Mal.Types
+
 import           Control.Exception          (catch, throw, throwIO)
+import           Control.Lens
 import           Control.Monad              (forM, when)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
@@ -12,11 +19,7 @@ import           Data.IORef                 (IORef, modifyIORef', newIORef,
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
-import           Mal.Error
-import qualified Mal.Internal.Builtin       as B
-import qualified Mal.Internal.Environment   as Env
-import           Mal.Internal.Util          (pairs)
-import           Mal.Types
+
 
 type Interpreter = ReaderT MalEnv IO MalType
 
@@ -52,11 +55,7 @@ eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
   evaledVal <- eval' val
   globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
   let value = case evaledVal of
-        -- TODO: Use lenses.
-        ( MalTailRecFunction
-            tailRec@MkMalTailRecFunction {tailRecFunction = func}
-          ) ->
-            MalTailRecFunction tailRec {tailRecFunction = func {fName = name}}
+        MalTailRecFunction f -> MalTailRecFunction $ f & tailRecFunction . fName .~ name
         _ -> evaledVal
   liftIO $ modifyIORef' globalScope (Env.insert name value)
   pure mkMalNil
@@ -65,22 +64,14 @@ eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
 eval' (MalList (MkMalList ["defmacro!", MalSymbol name, val])) = do
   evaledVal <- eval' val
   case evaledVal of
-    (MalTailRecFunction tailRecFunc@MkMalTailRecFunction {tailRecFunction = func}) -> do
+    (MalTailRecFunction f) -> do
       globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
       liftIO $
         modifyIORef'
           globalScope
           ( Env.insert
               name
-              ( MalTailRecFunction
-                  tailRecFunc
-                    { tailRecFunction =
-                        func
-                          { fName = name,
-                            fIsMacro = True
-                          }
-                    }
-              )
+              (MalTailRecFunction (f & tailRecFunction . fName .~ name & tailRecFunction . fIsMacro .~ True ))
           )
       pure MalNil
     other -> liftIO $ throwIO (InvalidArgs "defmacro!" [other] Nothing)
@@ -113,16 +104,15 @@ eval' (MalList (MkMalList ("do" : body))) =
   if null body
     then pure mkMalNil
     else do
-      -- I have to do @eval'@ here because evalAst does not recognize special forms.
       currentScope <- asks interpreterScope
-      liftIO $ mapM_ (eval Nothing currentScope) (init body)
-      liftIO $ eval Nothing currentScope (last body)
+      liftIO $ last <$> mapM (eval Nothing currentScope) body
 
 -- If expression
 eval' (MalList (MkMalList ["if", condition, trueBranch])) =
   evalIfStmt condition trueBranch Nothing
 eval' (MalList (MkMalList ["if", condition, trueBranch, falseBranch])) =
   evalIfStmt condition trueBranch (Just falseBranch)
+
 -- fn* special form (lambdas)
 eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
   let closure :: [MalType] -> Interpreter
@@ -146,12 +136,7 @@ eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
       body
       params
       currentScope
-      ( MkMalFunction
-          { fName = "lambda",
-            fBody = closure,
-            fIsMacro = False
-          }
-      )
+      (MkMalFunction "lambda" closure False)
 
 -- quote special form
 eval' (MalList (MkMalList ["quote", mt])) = pure mt
@@ -196,9 +181,9 @@ eval filename initialScope ast = do
 --
 -- For anything else, throw an error.
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction MkMalFunction {fBody = func} : args))) = func args
+evalCall (MalList (MkMalList (MalFunction func : args))) = func ^. fBody $ args
 evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body params env func) : args))) = do
-  let argBindings = M.fromList $ mkFnBindings (fName func) params args
+  let argBindings = M.fromList $ mkFnBindings (func^.fName) params args
       functionScope = Env.empty {scopeParent = Just env, scopeBindings = argBindings}
   liftIO $ newIORef functionScope >>= flip (eval Nothing) body
 evalCall (MalList (MkMalList (x : _))) = liftIO $ throwIO (NotAFunction x)
@@ -241,7 +226,7 @@ isMacroCall :: IORef MalScope -> MalType -> IO Bool
 isMacroCall currentScope (MalList (MkMalList (MalSymbol sym : _))) = do
   func <- catch (Env.find currentScope sym) (\(_ :: MalError) -> pure mkMalNil)
   case func of
-    (MalTailRecFunction tailRec) -> pure $ fIsMacro (tailRecFunction tailRec)
+    (MalTailRecFunction tailRec) -> pure $  tailRec ^. tailRecFunction . fIsMacro
     _                            -> pure False
 isMacroCall _ _ = pure False
 
@@ -262,7 +247,7 @@ macroexpand currentScope ast@(MalList (MkMalList (MalSymbol sym : args))) = do
     then pure ast
     else do
       (MalTailRecFunction func) <- liftIO $ Env.find currentScope sym
-      let macroFunc = fBody (tailRecFunction func)
+      let macroFunc = func ^. tailRecFunction . fBody
       result <- macroFunc args
       macroexpand currentScope result
 macroexpand _ ast = pure ast

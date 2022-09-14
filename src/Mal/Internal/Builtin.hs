@@ -64,6 +64,7 @@ import           Prelude                    hiding (quot)
 
 import           Control.Concurrent.STM     (atomically, readTVarIO, swapTVar)
 import           Control.Exception          (throw, throwIO)
+import           Control.Lens               hiding (cons)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')
@@ -317,11 +318,11 @@ reset xs = liftIO $ throwIO (InvalidArgs "reset!" xs (Just "expected an atom and
 swap :: BuiltinFunction
 swap (
     MalAtom ref:
-    (MalTailRecFunction (MkMalTailRecFunction _ _ _ MkMalFunction { fBody = func })):
+    MalTailRecFunction function:
     xs
     ) = do
      oldVal <- liftIO $ readTVarIO ref
-     newVal <- func (oldVal:xs)
+     newVal <- function ^. tailRecFunction . fBody $ oldVal:xs
      liftIO $ atomically (swapTVar ref newVal)
 swap xs = liftIO $ throwIO (InvalidArgs "swap!" xs Nothing)
 
