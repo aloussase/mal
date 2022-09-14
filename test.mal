@@ -1,8 +1,0 @@
-(do
-
-  (def! hello-world
-    (fn* (name)
-         (println (str "Hello," name "!"))))
-
-  (hello-world "john"))
-
