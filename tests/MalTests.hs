@@ -66,6 +66,14 @@ macrosSpec = describe "macros" $ do
     it "macros don't break quasiquote" $
         runWithScope "`(1)" `shouldReturn` mkMalList [mkMalNumber 1]
 
+hashMapSpec :: Spec
+hashMapSpec = describe "hash-maps" $ do
+    it "hash-map creation works" $ runWithScope "(hash-map \"a\" 1)" `shouldReturn` mkMalMap [mkMalString "a", mkMalNumber 1]
+    it "assoc works" $ runWithScope "(assoc {} \"a\" 1)" `shouldReturn` mkMalMap [mkMalString "a", mkMalNumber 1]
+    it "get works" $ runWithScope "(get (assoc (assoc {\"a\" 1 } \"b\" 2) \"c\" 3) \"a\")" `shouldReturn` mkMalNumber 1
+    it "keys works" $ runWithScope "(keys {\"1\" 1})" `shouldReturn` mkMalList [mkMalString "1"]
+    it "vals works" $ runWithScope "(vals {\"1\" 1})" `shouldReturn` mkMalList [mkMalNumber 1]
+
 builtinsSpec :: Spec
 builtinsSpec = describe "builtins" $ do
     context "read-string" $ do
@@ -120,6 +128,13 @@ builtinsSpec = describe "builtins" $ do
         runWithScope "(rest (list))" `shouldReturn` mkMalList []
         runWithScope "(rest (list 6))" `shouldReturn` mkMalList []
         runWithScope "(rest (list 7 8 9))" `shouldReturn` mkMalList [mkMalNumber 8, mkMalNumber 9]
+
+    it "map works" $ do
+        runWithScope "(do (def! nums (list 1 2 3)) (def! double (fn* (a) (* 2 a))) (map double nums)  )"
+            `shouldReturn` mkMalList [mkMalNumber 2, mkMalNumber 4, mkMalNumber 6]
+        runWithScope "(map (fn* (x) (symbol? x)) (list 1 (quote two) \"three\"))"
+            `shouldReturn` mkMalList [mkMalBool False, mkMalBool True, mkMalBool False]
+        runWithScope "(= () (map str ()))" `shouldReturn` mkMalBool True
 
 evaluatorSpec :: Spec
 evaluatorSpec = describe "Mal.run" $ do
@@ -314,5 +329,6 @@ main = hspec  $ do
     evaluatorSpec
     builtinsSpec
     macrosSpec
+    hashMapSpec
     tryCatchSpec
     coreSpec

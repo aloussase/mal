@@ -2,71 +2,13 @@
 {-|
     The builtin functions of the Mal programming language.
 -}
-module Mal.Internal.Builtin
-  ( builtins,
-
-    -- * Arithmetic functions
-    plus,
-    sub,
-    mult,
-    quot,
-
-    -- * Logic functions
-    eq,
-    lessThan,
-    lessThanEq,
-    greaterThan,
-    greaterThanEq,
-
-    -- * String functions
-    prn,
-    str,
-    println,
-    readString,
-
-    -- * List functions
-    list,
-    isList,
-    isEmpty,
-    count,
-    cons,
-    concat,
-    nth,
-    first,
-    rest,
-    map',
-
-    -- * IO functions
-    slurp,
-
-    -- * Atom functions
-    atom,
-    isAtom,
-    deref,
-    reset,
-    swap,
-
-    -- * Misc
-    quasiquote,
-
-    -- * Vector functions
-    vec,
-
-    -- * Exception related functions
-    throw',
-
-    -- * Predicate functions
-    isNil,
-    isTrue,
-    isFalse,
-    isSymbol,
-  )
-where
+module Mal.Internal.Builtin ( builtins, quasiquote ) where
 
 import           Mal.Class
 import           Mal.Error
 import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Parser
+import           Mal.Internal.Util          (pairs)
 import           Mal.PrettyPrinter
 import           Mal.Types
 
@@ -78,6 +20,9 @@ import           Control.Lens               hiding (cons)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (ReaderT, asks)
 import           Data.List                  (foldl', foldl1')
+import           Data.Map                   ((!?))
+import qualified Data.Map                   as M
+import           Data.Maybe                 (fromMaybe)
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
 import           System.IO                  (readFile')
@@ -118,12 +63,28 @@ builtins =
         , ("deref", deref)
         , ("reset!", reset)
         , ("swap!", swap)
+        -- Vector functions
         , ("vec", vec)
+        -- Map functions
+        , ("assoc", assoc)
+        , ("dissoc", dissoc)
+        , ("get", get)
+        , ("contains?", mapContains)
+        , ("keys", keys)
+        , ("vals", vals)
+        -- Exception related functions
         , ("throw", throw')
+        -- Predicate functions
         , ("nil?", isNil)
         , ("true?", isTrue)
         , ("false?", isFalse)
         , ("symbol?", isSymbol)
+        , ("sequential?", isSequential)
+        , ("vector?", isVector)
+        -- Constructor functions
+        , ("symbol", symbol)
+        , ("vector", vector)
+        , ("hash-map", hashMap)
       ]
 
 -- Arithmetic functions
@@ -374,10 +335,45 @@ quasiquote [ast]                                                      = pure ast
 quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
 
 -- Vector functions
+
 vec :: BuiltinFunction
 vec [MalList (MkMalList xs)] = pure $ mkMalVector xs
 vec [vs@(MalVec _)] = pure vs
 vec xs = liftIO $ throwIO (InvalidArgs "vec" xs (Just "expected a list"))
+
+-- Map functions
+
+-- | Takes a map and a variable number of arguments and returns a new map that is the result
+-- of adding the rest key-value pairs to the provided map.
+assoc :: BuiltinFunction
+assoc (MalMap (MkMalMap m):rest') = pure $ MalMap (MkMalMap $ m `M.union` M.fromList (pairs rest'))
+assoc xs = throwInvalidArgs "assoc" xs
+
+-- | 'dissoc' takes a map and a list of keys and returns a new map with all those keys removed.
+dissoc :: BuiltinFunction
+dissoc (MalMap (MkMalMap m):rest') = pure $ MalMap (MkMalMap $ foldr M.delete m rest')
+dissoc xs = throwInvalidArgs "dissoc" xs
+
+-- | 'get' takes a map and a key and returns the value associated with that key, or nil
+-- if none is.
+get :: BuiltinFunction
+get [MalMap (MkMalMap m), key] = pure $ fromMaybe mkMalNil (m !? key)
+get xs = throwInvalidArgs' "get" xs "expected a hash-map and a key"
+
+-- | 'mapContains' takes a map and a key and returns true if the map contains the given key.
+mapContains :: BuiltinFunction
+mapContains [MalMap (MkMalMap m), key] = pure $ mkMalBool (key `M.member` m)
+mapContains xs = throwInvalidArgs' "contains?" xs "expected a hash-map and a key"
+
+-- | 'keys' returns a list of keys of the provided map.
+keys :: BuiltinFunction
+keys [MalMap (MkMalMap m)] = pure $ mkMalList (M.keys m)
+keys xs                    = throwInvalidArgs' "keys" xs "expected a map"
+
+-- | 'vals' returns a list of values of the provided map.
+vals :: BuiltinFunction
+vals [MalMap (MkMalMap m)] = pure $ mkMalList (M.elems m)
+vals xs                    = throwInvalidArgs' "vals" xs "expected a map"
 
 -- Exception related functions
 
@@ -392,17 +388,48 @@ isNil :: BuiltinFunction
 isNil [x] = liftMalType . (== MalNil) $ x
 isNil xs  = throwInvalidArgs "nil?" xs
 
+-- | 'isTrue' return whether its argument is true.
 isTrue :: BuiltinFunction
 isTrue [MalBool True] = liftMalType True
 isTrue [_]            = liftMalType False
 isTrue xs             = throwInvalidArgs "true?" xs
 
+-- | 'isFalse' returns whether its argument is false.
 isFalse :: BuiltinFunction
 isFalse [MalBool False] = liftMalType True
 isFalse [_]             = liftMalType False
 isFalse xs              = throwInvalidArgs "false?" xs
 
+-- | 'isSymbol' returns whether its argument is a symbol.
 isSymbol :: BuiltinFunction
-isSymbol [MalSymbol _] = liftMalType False
+isSymbol [MalSymbol _] = liftMalType True
 isSymbol [_]           = liftMalType False
 isSymbol xs            = throwInvalidArgs "symbol?" xs
+
+-- | 'isSequential' returns True if its argument is a list or a vector.
+isSequential :: BuiltinFunction
+isSequential [MalList _] = pure $ mkMalBool True
+isSequential [MalVec _]  = pure $ mkMalBool True
+isSequential [_]         = pure $ mkMalBool False
+isSequential xs          = throwInvalidArgs "sequential?" xs
+
+isVector :: BuiltinFunction
+isVector [MalVec _] = pure $ mkMalBool True
+isVector [_]        = pure $ mkMalBool False
+isVector xs         = throwInvalidArgs "vector?" xs
+
+-- Constructor functions
+
+-- | 'symbol' takes a string and returns a symbol made from it.
+symbol :: BuiltinFunction
+symbol [MalString s] = pure $ mkMalSymbol s
+symbol xs            = throwInvalidArgs' "symbol" xs "expected a string"
+
+-- | 'vector' takes a variable number of arguments and returns a vector containing them.
+vector :: BuiltinFunction
+vector = pure . mkMalVector
+
+-- | 'hashMap' takes a variable number of arguments and return a hash-map
+-- consisting of the consecutive key-value pairs.
+hashMap :: BuiltinFunction
+hashMap = pure . mkMalMap
