@@ -29,9 +29,6 @@ lexeme = L.lexeme sc
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
-readNil :: Parser MalType
-readNil = label "nil" (symbol "nil") >> pure mkMalNil
-
 readNumber:: Parser MalType
 readNumber = mkMalNumber <$> L.decimal <?> "number"
 
@@ -41,18 +38,17 @@ readString = mkMalString <$> label "string" parseString
         parseString = symbol "\"" >> L.charLiteral `manyTill` symbol "\""
 
 readSymbol :: Parser MalType
-readSymbol = label "symbol" $
-    mkMalSymbol <$> some (choice
+readSymbol = label "symbol" $ do
+    token' <- some (choice
         [ alphaNumChar
         , char '-', char '+', char '/', char '*', char '!', char '?'
         , char '>', char '=', char '&', char '<', char '='
         ])
-
-readBool :: Parser MalType
-readBool = label "bool" (parseTrue <|> parseFalse)
-    where
-        parseTrue = symbol "true" >> pure (mkMalBool True)
-        parseFalse = symbol "false" >> pure (mkMalBool False)
+    pure $ case token' of
+        "nil"   -> mkMalNil
+        "true"  -> mkMalBool True
+        "false" -> mkMalBool False
+        _       -> mkMalSymbol token'
 
 readListLike :: (MalListLike a) => String -> Text -> Text -> ([MalType] -> a) -> Parser a
 readListLike lbl start end f =  label lbl (symbol start *> many readForm <* symbol end <&> f)
@@ -68,11 +64,9 @@ readMap = MalMap <$> readListLike "hash-map" "{" "}" (MkMalMap . M.fromList . pa
 
 readAtom :: Parser MalType
 readAtom = label "atom" $ choice
-    [ try readBool
-    , try readNil
+    [ readNumber
+    , readSymbol
     , readString
-    , try readNumber
-    , try readSymbol
     ]
 
 readComment :: Parser MalType

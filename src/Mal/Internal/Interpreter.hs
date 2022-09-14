@@ -9,7 +9,8 @@ import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Util          (pairs)
 import           Mal.Types
 
-import           Control.Exception          (catch, throw, throwIO)
+import           Control.Exception          (Handler (Handler), SomeException,
+                                             catch, catches, throw, throwIO)
 import           Control.Lens
 import           Control.Monad              (forM, when)
 import           Control.Monad.IO.Class     (liftIO)
@@ -140,14 +141,33 @@ eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
 
 -- quote special form
 eval' (MalList (MkMalList ["quote", mt])) = pure mt
+
 -- quasiquote special form
 eval' (MalList (MkMalList ("quasiquote" : ast))) = B.quasiquote ast >>= eval'
+
 -- macroexpand
 eval' (MalList (MkMalList ["macroexpand", ast])) = asks interpreterScope >>= flip macroexpand ast
+
+-- try*/catch*
+eval' (MalList (MkMalList ["try", tryBlock, MalList (MkMalList ["catch", MalSymbol catchVar, catchBody])])) = do
+  currentScope <- asks interpreterScope
+  programFilename <- asks interpreterFilename
+  liftIO $ eval (Just programFilename) currentScope tryBlock `catches `
+      [ Handler $ \(ex :: MalError) -> case ex of
+                      UserGeneratedError errVal -> liftIO $ do
+                        modifyIORef' currentScope (Env.insert catchVar errVal)
+                        eval (Just programFilename) currentScope catchBody
+                      _ -> throwIO ex
+      , Handler $ \(ex :: SomeException) -> liftIO $ do
+                      modifyIORef' currentScope (Env.insert catchVar (mkMalString $ show ex))
+                      eval (Just programFilename) currentScope catchBody
+      ]
+
 -- Here we probably have a function call.
 eval' xs@(MalList _) = evalAst xs >>= evalCall
+
 -- Otherwise just return the evaluated ast.
-eval' ast = evalAst ast
+eval' ast            = evalAst ast
 
 -- | 'eval' evaluates the provided 'MalType', using @scope@ as the initial
 -- environment.

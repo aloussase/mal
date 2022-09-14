@@ -34,6 +34,7 @@ module Mal.Internal.Builtin
     nth,
     first,
     rest,
+    map',
 
     -- * IO functions
     slurp,
@@ -49,7 +50,16 @@ module Mal.Internal.Builtin
     quasiquote,
 
     -- * Vector functions
-    vec
+    vec,
+
+    -- * Exception related functions
+    throw',
+
+    -- * Predicate functions
+    isNil,
+    isTrue,
+    isFalse,
+    isSymbol,
   )
 where
 
@@ -79,40 +89,41 @@ builtins =
   Env.fromList $
     map
       (\(sym, fn) -> (sym, mkMalFunction sym fn))
-      [ ("+", plus),
-        ("-", sub),
-        ("/", quot),
-        ("*", mult),
-
-        ("list", list),
-        ("list?", isList),
-        ("empty?", isEmpty),
-        ("count", count),
-        ("cons", cons),
-        ("concat", concat'),
-        ("nth", nth),
-        ("first", first),
-        ("rest", rest),
-
-        ("=", eq),
-        ("<", lessThan),
-        ("<=", lessThanEq),
-        (">", greaterThan),
-        (">=", greaterThanEq),
-
-        ("prn", prn),
-        ("str", str),
-        ("println", println),
-        ("read-string", readString),
-        ("slurp", slurp),
-
-        ("atom", atom),
-        ("atom?", isAtom),
-        ("deref", deref),
-        ("reset!", reset),
-        ("swap!", swap),
-
-        ("vec", vec)
+      [   ("+", plus)
+        , ("-", sub)
+        , ("/", quot)
+        , ("*", mult)
+        , ("list", list)
+        , ("list?", isList)
+        , ("empty?", isEmpty)
+        , ("count", count)
+        , ("cons", cons)
+        , ("concat", concat')
+        , ("nth", nth)
+        , ("first", first)
+        , ("rest", rest)
+        , ("map", map')
+        , ("=", eq)
+        , ("<", lessThan)
+        , ("<=", lessThanEq)
+        , (">", greaterThan)
+        , (">=", greaterThanEq)
+        , ("prn", prn)
+        , ("str", str)
+        , ("println", println)
+        , ("read-string", readString)
+        , ("slurp", slurp)
+        , ("atom", atom)
+        , ("atom?", isAtom)
+        , ("deref", deref)
+        , ("reset!", reset)
+        , ("swap!", swap)
+        , ("vec", vec)
+        , ("throw", throw')
+        , ("nil?", isNil)
+        , ("true?", isTrue)
+        , ("false?", isFalse)
+        , ("symbol?", isSymbol)
       ]
 
 -- Arithmetic functions
@@ -172,7 +183,7 @@ isEmpty _                        = liftMalType False
 -- | Return the number of elements in the provided list.
 count :: BuiltinFunction
 count [MalList (MkMalList xs)] = liftMalType . length $ xs
-count xs = liftIO $ throwIO (InvalidArgs "count" xs (Just "expected a list"))
+count xs                       = throwInvalidArgs' "count" xs "expected a list"
 
 -- | Prepend an element to a list.
 --
@@ -181,7 +192,7 @@ count xs = liftIO $ throwIO (InvalidArgs "count" xs (Just "expected a list"))
 cons :: BuiltinFunction
 cons [mt, MalList (MkMalList xs)] = pure $ mkMalList (mt:xs)
 cons [mt, MalVec (MkMalVector vs)] = pure $ mkMalList (mt : V.toList vs)
-cons xs = liftIO $ throwIO (InvalidArgs "concat" xs (Just "expected a thing and a list"))
+cons xs = throwInvalidArgs' "concat" xs "expected a thing and a list"
 
 -- | 'concat' concatenates the provided lists.
 --
@@ -205,21 +216,27 @@ nth [MalList (MkMalList xs), MalNumber idx] =
 nth [MalVec (MkMalVector vs), MalNumber idx] =
     if idx >= V.length vs then liftIO $ throwIO (IndexOutOfBounds idx $ V.length vs)
     else pure (vs V.! idx)
-nth xs = liftIO $ throwIO (InvalidArgs "nth" xs $ Just "expected a list or a vector")
+nth xs = throwInvalidArgs' "nth" xs "expected a list or a vector"
 
 -- | 'first' returns the first element of the provided list or vector, or nil if they
 -- are empty.
 first :: BuiltinFunction
 first [MalList (MkMalList xs)] = pure $ if null xs then mkMalNil else head xs
 first [MalVec (MkMalVector vs)] = pure $ if V.null vs then mkMalNil else V.head vs
-first xs = liftIO $ throwIO (InvalidArgs "first" xs $ Just "expected a list or a vector")
+first xs = throwInvalidArgs' "first" xs "expected a list or a vector"
 
 -- | 'rest' returns all but the first element of the provided list or vector, or nil if they
 -- are empty.
 rest :: BuiltinFunction
 rest [MalList (MkMalList xs)] = pure $ if null xs then mkMalList [] else mkMalList $ tail xs
 rest [MalVec (MkMalVector vs)] = pure $ if V.null vs then mkMalList [] else MalVec $ MkMalVector (V.tail vs)
-rest xs = liftIO $ throwIO (InvalidArgs "rest" xs $ Just "expected a list or a vector")
+rest xs = throwInvalidArgs' "rest" xs "expected a list or a vector"
+
+-- | 'map' takes a list and returns a new list that is the result of applying the supplied function
+-- to every element of the original list.
+map' :: BuiltinFunction
+map' [MalTailRecFunction f, MalList (MkMalList xs)] = mkMalList <$> mapM ((f ^. tailRecFunction . fBody) . (:[])) xs
+map' xs = throwInvalidArgs' "map" xs "expected a function and a list"
 
 -- Logic functions
 
@@ -360,3 +377,31 @@ vec :: BuiltinFunction
 vec [MalList (MkMalList xs)] = pure $ mkMalVector xs
 vec [vs@(MalVec _)] = pure vs
 vec xs = liftIO $ throwIO (InvalidArgs "vec" xs (Just "expected a list"))
+
+-- Exception related functions
+
+throw' :: BuiltinFunction
+throw' [mt] = liftIO . throwIO . UserGeneratedError $ mt
+throw' xs   = liftIO $ throwIO (InvalidArgs "throw" xs Nothing)
+
+ -- Predicate functions
+
+ -- | 'isNil' returns whether its argument is nil.
+isNil :: BuiltinFunction
+isNil [x] = liftMalType . (== MalNil) $ x
+isNil xs  = throwInvalidArgs "nil?" xs
+
+isTrue :: BuiltinFunction
+isTrue [MalBool True] = liftMalType True
+isTrue [_]            = liftMalType False
+isTrue xs             = throwInvalidArgs "true?" xs
+
+isFalse :: BuiltinFunction
+isFalse [MalBool False] = liftMalType True
+isFalse [_]             = liftMalType False
+isFalse xs              = throwInvalidArgs "false?" xs
+
+isSymbol :: BuiltinFunction
+isSymbol [MalSymbol _] = liftMalType False
+isSymbol [_]           = liftMalType False
+isSymbol xs            = throwInvalidArgs "symbol?" xs
