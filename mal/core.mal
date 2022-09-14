@@ -34,4 +34,9 @@
 (fun inc (x) (+ 1 x))
 (fun dec (x) (- 1 x))
 
+(fun input (prompt)
+  (do
+    (print prompt)
+    (readline)))
+
 )

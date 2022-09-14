@@ -1,0 +1,11 @@
+(do
+
+(fun hello-world (name)
+  (println (str "Hello, " name "!")))
+
+(let*
+  (name (input "what is your name? "))
+  (hello-world name))
+
+)
+

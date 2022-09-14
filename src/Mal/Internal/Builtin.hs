@@ -26,6 +26,7 @@ import           Data.Maybe                 (fromMaybe)
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
 import           System.IO                  (readFile')
+import qualified System.IO                  as SIO
 
 type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
 
@@ -56,8 +57,12 @@ builtins =
         , ("prn", prn)
         , ("str", str)
         , ("println", println)
+        , ("print", print')
         , ("read-string", readString)
+        -- IO functions
         , ("slurp", slurp)
+        , ("readline", readline)
+        -- Atom functions
         , ("atom", atom)
         , ("atom?", isAtom)
         , ("deref", deref)
@@ -242,7 +247,17 @@ prn xs = do
 
 -- | 'println' prints the given arguments as formated by 'str'.
 println :: BuiltinFunction
-println xs = str xs >>= liftIO . print >> pure mkMalNil
+println xs = str xs >>= liftIO . putStrLn . T.unpack . unquote . T.pack . show >> pure mkMalNil
+
+print' :: BuiltinFunction
+print' xs = do
+  s <- str xs
+  liftIO $ do
+    bufferMode <- SIO.hGetBuffering SIO.stdin
+    SIO.hSetBuffering SIO.stdout SIO.NoBuffering
+    putStr . T.unpack . unquote . T.pack . show $ s
+    SIO.hSetBuffering SIO.stdout bufferMode
+  pure mkMalNil
 
 -- | 'str' returns a string that is the result of joining the string the representation
 -- of its arguments using a space character as a separator.
@@ -269,6 +284,9 @@ slurp [MalString filename] = do
   !contents <- liftIO $ readFile' filename
   pure $ mkMalString contents
 slurp xs = throw $ InvalidArgs "slurp" xs (Just "expected a filename (string)")
+
+readline :: BuiltinFunction
+readline _ = mkMalString <$> liftIO SIO.getLine
 
 -- Atom functions
 
