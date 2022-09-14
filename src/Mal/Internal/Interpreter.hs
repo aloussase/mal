@@ -149,19 +149,20 @@ eval' (MalList (MkMalList ("quasiquote" : ast))) = B.quasiquote ast >>= eval'
 eval' (MalList (MkMalList ["macroexpand", ast])) = asks interpreterScope >>= flip macroexpand ast
 
 -- try*/catch*
-eval' (MalList (MkMalList ["try", tryBlock, MalList (MkMalList ["catch", MalSymbol catchVar, catchBody])])) = do
+eval' (MalList (MkMalList ["try*", tryBlock, MalList (MkMalList ["catch*", MalSymbol catchVar, catchBody])])) = do
   currentScope <- asks interpreterScope
   programFilename <- asks interpreterFilename
   liftIO $ eval (Just programFilename) currentScope tryBlock `catches `
       [ Handler $ \(ex :: MalError) -> case ex of
-                      UserGeneratedError errVal -> liftIO $ do
-                        modifyIORef' currentScope (Env.insert catchVar errVal)
-                        eval (Just programFilename) currentScope catchBody
-                      _ -> throwIO ex
-      , Handler $ \(ex :: SomeException) -> liftIO $ do
-                      modifyIORef' currentScope (Env.insert catchVar (mkMalString $ show ex))
-                      eval (Just programFilename) currentScope catchBody
+                      UserGeneratedError errVal -> returnError currentScope programFilename errVal
+                      _ -> returnError currentScope programFilename (mkMalString $ show ex)
+      , Handler $ \(ex :: SomeException) -> returnError currentScope programFilename (mkMalString $ show ex)
       ]
+  where
+    returnError :: IORef MalScope -> MalFilename -> MalType -> IO MalType
+    returnError currentScope programFilename ex = liftIO $ do
+        modifyIORef' currentScope (Env.insert catchVar ex)
+        eval (Just programFilename) currentScope catchBody
 
 -- Here we probably have a function call.
 eval' xs@(MalList _) = evalAst xs >>= evalCall

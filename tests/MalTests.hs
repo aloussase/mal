@@ -25,6 +25,18 @@ coreSpec = describe "core lib" $ do
     it "fun works" $ do
         runWithScope "(do (fun add (x y) (+ x y)) (add 1 2))" `shouldReturn` mkMalNumber 3
 
+tryCatchSpec :: Spec
+tryCatchSpec = describe "try-catch" $ do
+    it "throw works" $
+        runWithScope "(throw \"err1\")"  `shouldThrow`  anyException
+
+    it "try/catch works" $ do
+        runWithScope "(try* 123 (catch* e 456))" `shouldReturn` mkMalNumber 123
+        runWithScope "(try* abc (catch* exc (prn \"exc is:\" exc)))" `shouldReturn` MalNil
+        runWithScope "(try* (throw \"my exception\") (catch* exc (do (prn \"exc:\" exc) 7)))" `shouldReturn` mkMalNumber 7
+        runWithScope "(try* (do (try* \"t1\" (catch* e \"c1\")) (throw \"e1\")) (catch* e \"c2\"))" `shouldReturn` mkMalString "c2"
+        runWithScope "(try* (map throw (list \"my err\")) (catch* exc exc))" `shouldReturn` mkMalString "my err"
+
 macrosSpec :: Spec
 macrosSpec = describe "macros" $ do
     it "trivial macros work" $ do
@@ -302,4 +314,5 @@ main = hspec  $ do
     evaluatorSpec
     builtinsSpec
     macrosSpec
+    tryCatchSpec
     coreSpec
