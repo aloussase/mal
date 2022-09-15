@@ -8,7 +8,7 @@
 
 (let*
   (name (input "what is your name? "))
-  (hello-world (make-person name)))
+  (hello-world (make-person :name name)))
 
 )
 

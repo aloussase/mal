@@ -11,7 +11,7 @@ This is an (almost complete) implementation of the [MAL](https://github.com/kana
 
 (let*
   (name (input "what is your name? "))
-  (hello-world (make-person name)))
+  (hello-world (make-person :name name)))
 ```
 
 For a more complex examples (such a command line todo app), see the `examples` directory.
@@ -24,7 +24,8 @@ want to add any of them:
 
 - [x] keywords - this are specified in the original mal
 - [ ] records - simplified haskell-like records
-- [ ] named arguments by default - like in [Jakt](https://github.com/SerenityOS/jakt)
+- [x] ~named arguments by default - like in [Jakt](https://github.com/SerenityOS/jakt)~
+  - optional positional named arguments were added
 - [ ] better error messages in the interpreter
 
 ## License
