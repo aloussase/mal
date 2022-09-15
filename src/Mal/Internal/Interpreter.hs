@@ -4,7 +4,7 @@
 module Mal.Internal.Interpreter (eval) where
 
 import           Mal.Error
-import qualified Mal.Internal.Builtin       as B
+import           Mal.Internal.Environment   (withScope)
 import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Util          (pairs)
 import           Mal.Types
@@ -12,32 +12,22 @@ import           Mal.Types
 import           Control.Exception          (Handler (Handler), SomeException,
                                              catch, catches, throw, throwIO)
 import           Control.Lens
-import           Control.Monad              (forM, when)
+import           Control.Monad              (forM)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (asks, runReaderT)
-import           Data.IORef                 (IORef, modifyIORef', newIORef,
-                                             readIORef)
+import           Data.IORef                 (IORef, modifyIORef', newIORef)
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
-import           Mal.Internal.Environment   (withScope)
 
-isFalsey :: MalType -> Bool
-isFalsey (MalBool False) = True
-isFalsey MalNil          = True
-isFalsey _               = False
 
-isTruthy :: MalType -> Bool
-isTruthy = not . isFalsey
-
-evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
-evalIfStmt condition trueBranch falseBranch = do
-  result <- eval' condition
-  currentScope <- asks interpreterScope
-  fileName <- asks interpreterFilename
-  if isTruthy result
-    then liftIO $ eval (Just fileName) currentScope trueBranch
-    else liftIO $ eval (Just fileName) currentScope (fromMaybe mkMalNil falseBranch)
+-- | 'eval' evaluates the provided 'MalType', using @scope@ as the initial
+-- environment.
+eval :: Maybe MalFilename -> IORef MalScope -> MalType -> IO MalType
+eval filename initialScope ast = do
+  runReaderT
+    (macroexpand initialScope ast >>= eval')
+    (MkMalEnv initialScope $ fromMaybe (MkMalFilename "<repl>") filename)
 
 evalAst :: MalType -> Interpreter
 evalAst (MalSymbol s) = asks interpreterScope >>= liftIO . flip Env.find s
@@ -50,7 +40,14 @@ evalAst (MalMap (MkMalMap m)) = do
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
---- def!
+
+-- def!
+--
+-- The def! special form binds symbols at the top level scope, meaning it always creates
+-- global variables.
+--
+-- TODO: Consider implementing a `local` special form to define local variables like in Fennel.
+--
 eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
   evaledVal <- eval' val
   globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
@@ -61,6 +58,10 @@ eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
   pure mkMalNil
 
 -- defmacro!
+--
+-- A macro is just a function marked as a macro. This will allow us to treat it diffrently
+-- when the time to evaluate a macro call comes.
+--
 eval' (MalList (MkMalList ["defmacro!", MalSymbol name, val])) = do
   evaledVal <- eval' val
   case evaledVal of
@@ -99,7 +100,10 @@ eval' (MalList (MkMalList ("let*" : MalList (MkMalList bindings) : body))) = do
   -- >>> eval' body
   liftIO $ eval Nothing letScope (mkMalList $ "do" : body)
 
--- Do special form
+-- do special form
+--
+-- Evaluates the forms in its body one at a time and return the result of the last form.
+--
 eval' (MalList (MkMalList ("do" : body))) =
   if null body
     then pure mkMalNil
@@ -107,7 +111,7 @@ eval' (MalList (MkMalList ("do" : body))) =
       currentScope <- asks interpreterScope
       liftIO $ last <$> mapM (eval Nothing currentScope) body
 
--- If expression
+-- if special form
 eval' (MalList (MkMalList ["if", condition, trueBranch])) =
   evalIfStmt condition trueBranch Nothing
 eval' (MalList (MkMalList ["if", condition, trueBranch, falseBranch])) =
@@ -142,7 +146,7 @@ eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
 eval' (MalList (MkMalList ["quote", mt])) = pure mt
 
 -- quasiquote special form
-eval' (MalList (MkMalList ("quasiquote" : ast))) = B.quasiquote ast >>= eval'
+eval' (MalList (MkMalList ("quasiquote" : ast))) = quasiquote ast >>= eval'
 
 -- macroexpand
 eval' (MalList (MkMalList ["macroexpand", ast])) = asks interpreterScope >>= flip macroexpand ast
@@ -163,33 +167,10 @@ eval' (MalList (MkMalList ["try*", tryBlock, MalList (MkMalList ["catch*", MalSy
         modifyIORef' currentScope (Env.insert catchVar ex)
         eval (Just programFilename) currentScope catchBody
 
--- Here we probably have a function call.
-eval' xs@(MalList _) = evalAst xs >>= evalCall
+eval' xs@(MalList _) = evalAst xs >>= evalCall  -- Here we probably have a function call.
+eval' ast            = evalAst ast              -- Otherwise just return the evaluated ast.
 
--- Otherwise just return the evaluated ast.
-eval' ast            = evalAst ast
-
--- | 'eval' evaluates the provided 'MalType', using @scope@ as the initial
--- environment.
-eval :: Maybe MalFilename -> IORef MalScope -> MalType -> IO MalType
-eval filename initialScope ast = do
-  env <- readIORef initialScope
-
-  when (env == Env.empty) $ do
-    topLevelScope <- newIORef builtins
-    modifyIORef' initialScope (\s -> s {scopeParent = Just topLevelScope})
-
-  runReaderT
-    (macroexpand initialScope ast >>= eval')
-    (MkMalEnv initialScope $ fromMaybe (MkMalFilename "<repl>") filename)
-  where
-    builtins = Env.insert "eval" (mkMalFunction "eval" builtinEval) B.builtins
-
-    builtinEval :: [MalType] -> Interpreter
-    builtinEval [ast'] = do
-      globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
-      liftIO $ eval Nothing globalScope ast'
-    builtinEval xs = liftIO $ throwIO (InvalidArgs "eval" xs $ Just "expected a single argument")
+-- Functions
 
 -- | 'evalCall' evaluates a function call.
 --
@@ -200,6 +181,7 @@ eval filename initialScope ast = do
 -- environment.
 --
 -- For anything else, throw an error.
+--
 evalCall :: MalType -> Interpreter
 evalCall (MalList (MkMalList (MalFunction func : args))) = func ^. fBody $ args
 evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body params env func) : args))) = do
@@ -223,6 +205,34 @@ mkFnBindings functionName = go []
     go bindings xs ys
       | length xs == length ys = bindings
       | otherwise = throw $ InvalidSignature ("Mismatched arguments for function: " <> functionName)
+
+-- Macros
+
+-- | 'quasiquote' quasiquotes an expression.
+--
+-- ...
+--
+-- Plz don't ask more, I honestly don't know WTF is going on down there.
+-- https://github.com/kanaka/mal/blob/master/process/guide.md#step-7-quoting
+--
+quasiquote :: [MalType] -> Interpreter
+quasiquote [MalList (MkMalList ["unquote", ast])] = pure ast
+quasiquote [MalList (MkMalList ast)] = go ast
+    where
+        go (MalList (MkMalList ["splice-unquote", elt]):rest') = do
+            result <- go rest'
+            -- This assumes that elt will eventually resolve to a list.
+            pure $ mkMalList ["concat", elt, result]
+        go (elt:ys) = do
+            result <- quasiquote [elt]  -- Quasiquote elt
+            rest' <- go ys               -- Process the rest
+            pure $ mkMalList ["cons", result, rest']
+        -- If the ast is empty just return it as is.
+        go [] = pure $ mkMalList []
+quasiquote [sym@(MalSymbol _)] = pure $ mkMalList ["quote", sym]
+quasiquote [m@(MalMap _)] = pure $ mkMalList ["quote", m]
+quasiquote [ast]                                                      = pure ast
+quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
 
 -- | 'isMacroCall' takes the current scope and an AST and returns true if the
 -- first element of the AST corresponds to a function that has the @fIsMacro@
@@ -257,3 +267,22 @@ macroexpand currentScope ast@(MalList (MkMalList (MalSymbol sym : args))) = do
         result <- macroFunc args
         macroexpand currentScope result
 macroexpand _ ast = pure ast
+
+-- Helpers
+
+isFalsey :: MalType -> Bool
+isFalsey (MalBool False) = True
+isFalsey MalNil          = True
+isFalsey _               = False
+
+isTruthy :: MalType -> Bool
+isTruthy = not . isFalsey
+
+evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
+evalIfStmt condition trueBranch falseBranch = do
+  result <- eval' condition
+  currentScope <- asks interpreterScope
+  fileName <- asks interpreterFilename
+  if isTruthy result
+    then liftIO $ eval (Just fileName) currentScope trueBranch
+    else liftIO $ eval (Just fileName) currentScope (fromMaybe mkMalNil falseBranch)

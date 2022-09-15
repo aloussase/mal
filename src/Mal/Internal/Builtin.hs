@@ -2,12 +2,13 @@
 {-|
     The builtin functions of the Mal programming language.
 -}
-module Mal.Internal.Builtin ( builtins, quasiquote ) where
+module Mal.Internal.Builtin ( builtins ) where
 
 import           Mal.Class
 import           Mal.Error
 import           Mal.Internal.Environment   (withScope)
 import qualified Mal.Internal.Environment   as Env
+import qualified Mal.Internal.Interpreter   as I
 import           Mal.Internal.Parser
 import           Mal.Internal.Util          (pairs)
 import           Mal.PrettyPrinter
@@ -95,6 +96,7 @@ builtins =
         , ("hash-map", hashMap)
         -- Misc
         , ("apply", apply)
+        , ("eval", eval)
       ]
 
 -- Arithmetic functions
@@ -335,32 +337,11 @@ swap xs = liftIO $ throwIO (InvalidArgs "swap!" xs Nothing)
 
 -- Misc
 
--- | 'quasiquote' quasiquotes an expression.
---
--- ...
---
--- Plz don't ask more, I honestly don't know WTF is going on down there.
--- https://github.com/kanaka/mal/blob/master/process/guide.md#step-7-quoting
---
-quasiquote :: BuiltinFunction
-quasiquote [MalList (MkMalList ["unquote", ast])] = pure ast
-quasiquote [MalList (MkMalList ast)] = go ast
-    where
-        go :: BuiltinFunction
-        go (MalList (MkMalList ["splice-unquote", elt]):rest') = do
-            result <- go rest'
-            -- This assumes that elt will eventually resolve to a list.
-            pure $ mkMalList ["concat", elt, result]
-        go (elt:ys) = do
-            result <- quasiquote [elt]  -- Quasiquote elt
-            rest' <- go ys               -- Process the rest
-            pure $ mkMalList ["cons", result, rest']
-        -- If the ast is empty just return it as is.
-        go [] = pure $ mkMalList []
-quasiquote [sym@(MalSymbol _)] = pure $ mkMalList ["quote", sym]
-quasiquote [m@(MalMap _)] = pure $ mkMalList ["quote", m]
-quasiquote [ast]                                                      = pure ast
-quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
+eval :: [MalType] -> Interpreter
+eval [ast'] = do
+  globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
+  liftIO $ I.eval Nothing globalScope ast'
+eval xs = liftIO $ throwIO (InvalidArgs "eval" xs $ Just "expected a single argument")
 
 apply :: BuiltinFunction
 apply (MalTailRecFunction func:xs) = withScope (func ^. tailRecEnv) $ apply' (func ^. tailRecFunction) xs
