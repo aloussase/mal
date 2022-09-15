@@ -1,10 +1,10 @@
 (do
 
 (fun make-person (name)
-  {"name" name})
+  {:name name})
 
 (fun hello-world (person)
-  (println (str "Hello, " (get person "name") "!")))
+  (println (str "Hello, " (get person :name) "!")))
 
 (let*
   (name (input "what is your name? "))

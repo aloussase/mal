@@ -29,6 +29,9 @@ lexeme = L.lexeme sc
 symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
+readKeyword :: Parser MalType
+readKeyword = char ':' >> MalKeyword <$> validIdentifierCharacter
+
 readNumber:: Parser MalType
 readNumber = mkMalNumber <$> L.decimal <?> "number"
 
@@ -37,13 +40,16 @@ readString = mkMalString <$> label "string" parseString
     where
         parseString = symbol "\"" >> L.charLiteral `manyTill` symbol "\""
 
+validIdentifierCharacter :: Parser String
+validIdentifierCharacter = some (choice
+    [ alphaNumChar
+    , char '-', char '+', char '/', char '*', char '!', char '?'
+    , char '>', char '=', char '&', char '<', char '='
+    ])
+
 readSymbol :: Parser MalType
 readSymbol = label "symbol" $ do
-    token' <- some (choice
-        [ alphaNumChar
-        , char '-', char '+', char '/', char '*', char '!', char '?'
-        , char '>', char '=', char '&', char '<', char '='
-        ])
+    token' <- validIdentifierCharacter
     pure $ case token' of
         "nil"   -> mkMalNil
         "true"  -> mkMalBool True
@@ -64,7 +70,8 @@ readMap = MalMap <$> readListLike "hash-map" "{" "}" (MkMalMap . M.fromList . pa
 
 readAtom :: Parser MalType
 readAtom = label "atom" $ choice
-    [ readNumber
+    [ try readKeyword
+    , readNumber
     , readSymbol
     , readString
     ]

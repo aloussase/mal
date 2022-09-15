@@ -83,6 +83,7 @@ data MalType =
           MalSymbol String
         | MalNumber Int
         | MalString String
+        | MalKeyword String
         | MalBool Bool
         | MalNil
         | MalList MalList
@@ -100,6 +101,7 @@ instance Show MalType where
     show (MalSymbol s)   = s
     show (MalNumber n)   = show n
     show (MalString s)   = mconcat [ "\"", s, "\""]
+    show (MalKeyword s)  = ":" <>  s
     show (MalBool True)  = "#t"
     show (MalBool False) = "#f"
     show MalNil          = "nil"
@@ -124,6 +126,7 @@ instance Ord MalType where
     compare (MalMap x)             (MalMap y)             = compare x y
     compare (MalFunction x)        (MalFunction y)        = compare x y
     compare (MalTailRecFunction x) (MalTailRecFunction y) = compare x y
+    compare (MalKeyword x) (MalKeyword y)                 = compare x y
     compare _ _ = error "cant compare this lemons and apples"
 
 -- Env things

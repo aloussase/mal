@@ -14,7 +14,7 @@ import           Control.Exception          (Handler (Handler), SomeException,
 import           Control.Lens
 import           Control.Monad              (forM, when)
 import           Control.Monad.IO.Class     (liftIO)
-import           Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
+import           Control.Monad.Trans.Reader (asks, runReaderT)
 import           Data.IORef                 (IORef, modifyIORef', newIORef,
                                              readIORef)
 import qualified Data.Map                   as M
