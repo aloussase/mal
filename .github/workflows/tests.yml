@@ -1,0 +1,28 @@
+on: [push]
+name: Run tests
+jobs:
+  run-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        ghc: ["8.10.7"]
+        cabal: ["3.0.0.0"]
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Haskell
+        uses: haskell/actions/setup@v2
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: ${{ matrix.cabal }}
+
+      - name: Cache test dependencies
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-build-${{ hashFiles('mal.cabal') }}
+          path: dist-newstyle
+
+      - name: Run tests
+        run: cabal test --test-show-details=direct
