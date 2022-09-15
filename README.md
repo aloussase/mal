@@ -14,6 +14,8 @@ This is an (almost complete) implementation of the [MAL](https://github.com/kana
   (hello-world (make-person name)))
 ```
 
+For a more complex examples (such a command line todo app), see the `examples` directory.
+
 ## TODO
 
 This is a list of additional features not available in the original Mal

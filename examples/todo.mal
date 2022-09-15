@@ -1,0 +1,29 @@
+(do
+
+(def! todos (atom '()))
+
+(fun remove (val vals)
+    (let* (current-val (first vals))
+        (cond
+            (empty? vals) vals
+            (= val current-val) (remove val (rest vals))
+            "else" (cons current-val (remove val (rest vals))))))
+
+(fun delete-todo (todo)
+    (swap! todos (fn* (todos) (remove todo todos))))
+
+(fun add-todo (todo)
+    (swap! todos (fn* (todos) (cons todo todos))))
+
+(fun main ()
+    (let* (command (input "enter a command: "))
+        (cond
+            (= command "add")    (add-todo (input "add a todo: "))
+            (= command "delete") (delete-todo (input "enter the todo to delete: "))
+            (= command "list")   (println (deref todos))
+            "else" (println "invalid command..."))
+        (main)))
+
+(main)
+
+)
