@@ -22,8 +22,15 @@ coreSpec = describe "core lib" $ do
         runWithScope "(cond false 7 false 8 \"else\" 9)" `shouldReturn` mkMalNumber 9
         runWithScope "(cond false 7 false 8 false 9)" `shouldReturn` mkMalNil
 
-    it "fun works" $ do
-        runWithScope "(do (fun add (x y) (+ x y)) (add 1 2))" `shouldReturn` mkMalNumber 3
+    context "fun" $ do
+        it "simple functions work" $
+            runWithScope "(do (fun add (x y) (+ x y)) (add 1 2))" `shouldReturn` mkMalNumber 3
+
+        it "named arguments work" $ do
+            runWithScope "(fun add (x y) (+ x y)) (add 1 2)" `shouldReturn` mkMalNumber 3
+            runWithScope "(fun add (x y) (+ x y)) (add :x 1 :y 2)" `shouldReturn` mkMalNumber 3
+            runWithScope "(fun add (x y) (+ x y)) (add :x 1 2)" `shouldReturn` mkMalNumber 3
+            runWithScope "(fun add (x y) (+ x y)) (add 1 :y 2)" `shouldReturn` mkMalNumber 3
 
 tryCatchSpec :: Spec
 tryCatchSpec = describe "try-catch" $ do

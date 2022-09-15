@@ -29,6 +29,8 @@ module Mal.Types (
     , mkMalSymbol
     , mkMalVector
     , mkMalAtom
+    -- * Type predicates
+    , isKeyword
     -- * Lenses
     , fName
     , fBody
@@ -126,7 +128,11 @@ instance Ord MalType where
     compare (MalMap x)             (MalMap y)             = compare x y
     compare (MalFunction x)        (MalFunction y)        = compare x y
     compare (MalTailRecFunction x) (MalTailRecFunction y) = compare x y
-    compare (MalKeyword x) (MalKeyword y)                 = compare x y
+    compare (MalKeyword x)         (MalKeyword y)         = compare x y
+    compare (MalString x)          (MalKeyword y)         = compare x y
+    compare (MalSymbol x)          (MalKeyword y)         = compare x y
+    compare (MalKeyword x)         (MalString y)          = compare x y
+    compare (MalKeyword x)         (MalSymbol y)          = compare x y
     compare _ _ = error "cant compare this lemons and apples"
 
 -- Env things
@@ -190,6 +196,12 @@ mkMalMap = MalMap . MkMalMap . M.fromList . pairs
 
 mkMalAtom :: (MonadIO m) => MalType -> m MalType
 mkMalAtom t = MalAtom <$> liftIO (newTVarIO t)
+
+-- Type predicates
+
+isKeyword :: MalType -> Bool
+isKeyword (MalKeyword _ ) = True
+isKeyword _               = False
 
 -- Function types
 

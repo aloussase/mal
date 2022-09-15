@@ -211,32 +211,17 @@ evalCall ast = pure ast
 -- | Bind a list of function names to the corresponding arguments.
 -- This handles clojure-style rest params as well.
 mkFnBindings :: String -> [MalType] -> [MalType] -> [(String, MalType)]
-mkFnBindings funcName xs ys =
-  if length xs == length ys || any (isSymbol "&") xs
-    then go [] xs ys
-    else
-      throw $
-        InvalidArgs
-          funcName
-          xs
-          ( Just $
-              mconcat
-                [ "expected ",
-                  show (length xs),
-                  " argument(s), but got ",
-                  show (length ys)
-                ]
-          )
+mkFnBindings functionName = go []
   where
     go :: [(String, MalType)] -> [MalType] -> [MalType] -> [(String, MalType)]
     go bindings ["&", MalSymbol rest] args = (rest, mkMalList args) : bindings
     go _ ("&" : _ : _) _ = throw $ InvalidSignature "expected only 1 argument after '&'"
-    go bindings ((MalSymbol name) : names) (arg : args) = go ((name, arg) : bindings) names args
-    go bindings _ _ = bindings
-
-    isSymbol :: String -> MalType -> Bool
-    isSymbol sym (MalSymbol s) = sym == s
-    isSymbol _ _               = False
+    go bindings (param@(MalSymbol name) : names) (arg : args)
+      | isKeyword arg && (param `compare` arg) == EQ = go ((name, head args) : bindings) names (tail args)
+      | otherwise = go ((name, arg) : bindings) names args
+    go bindings xs ys
+      | length xs == length ys = bindings
+      | otherwise = throw $ InvalidSignature ("Mismatched arguments for function: " <> functionName)
 
 -- | 'isMacroCall' takes the current scope and an AST and returns true if the
 -- first element of the AST corresponds to a function that has the @fIsMacro@

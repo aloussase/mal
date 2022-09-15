@@ -118,6 +118,7 @@ parse filename input =
                         Just (MkMalFilename f) -> f
                         _                      -> "<repl>"
      in
-        case runParser (space >> readForm <* eof) filename' input of
-          Left err     -> throw $ ParseError (errorBundlePretty err)
-          Right result -> result
+        case runParser (space >> many readForm <* eof) filename' input of
+          Left err       -> throw $ ParseError (errorBundlePretty err)
+          Right [result] -> result
+          Right result   -> mkMalList ("do":result)

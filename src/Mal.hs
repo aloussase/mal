@@ -49,8 +49,9 @@ run filename initialScope program = do
     core <- TIO.readFile coreFile
     args <- map mkMalString <$> getArgs
 
+    -- Load the core libraries.
     void $ eval (Just (MkMalFilename coreFile)) initialScope (parse (Just $ MkMalFilename coreFile) core)
-    void $ eval (Just (MkMalFilename coreFile)) initialScope
-                (mkMalList ["def!", "*ARGV*", mkMalList ("list" : args)])
-
+    -- Load the command line arguments.
+    void $ eval (Just (MkMalFilename coreFile)) initialScope (mkMalList ["def!", "*ARGV*", mkMalList ("list" : args)])
+    -- Run the program.
     eval filename initialScope (parse filename program)

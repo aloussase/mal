@@ -22,7 +22,7 @@ This is a list of additional features not available in the original Mal
 language that I am planning to implement, feel free to open a PR if you
 want to add any of them:
 
-- [ ] keywords - this are specified in the original mal
+- [x] keywords - this are specified in the original mal
 - [ ] records - simplified haskell-like records
 - [ ] named arguments by default - like in [Jakt](https://github.com/SerenityOS/jakt)
 - [ ] better error messages in the interpreter
