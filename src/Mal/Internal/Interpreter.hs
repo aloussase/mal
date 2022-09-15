@@ -56,6 +56,7 @@ eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
         _ -> evaledVal
   liftIO $ modifyIORef' globalScope (Env.insert name value)
   pure mkMalNil
+eval' (MalList (MkMalList ("def!":_))) = throwSpecialForm "def!"
 
 -- defmacro!
 --
@@ -76,6 +77,7 @@ eval' (MalList (MkMalList ["defmacro!", MalSymbol name, val])) = do
           )
       pure MalNil
     other -> liftIO $ throwIO (InvalidArgs "defmacro!" [other] Nothing)
+eval' (MalList (MkMalList ("defmacro!":_))) = throwSpecialForm "defmacro!"
 
 -- let special form
 --
@@ -99,6 +101,7 @@ eval' (MalList (MkMalList ("let*" : MalList (MkMalList bindings) : body))) = do
   -- This let's us do TCO. The alternative would be to do
   -- >>> eval' body
   liftIO $ eval Nothing letScope (mkMalList $ "do" : body)
+eval' (MalList (MkMalList ("let*":_))) = throwSpecialForm "let*"
 
 -- do special form
 --
@@ -112,10 +115,9 @@ eval' (MalList (MkMalList ("do" : body))) =
       liftIO $ last <$> mapM (eval Nothing currentScope) body
 
 -- if special form
-eval' (MalList (MkMalList ["if", condition, trueBranch])) =
-  evalIfStmt condition trueBranch Nothing
-eval' (MalList (MkMalList ["if", condition, trueBranch, falseBranch])) =
-  evalIfStmt condition trueBranch (Just falseBranch)
+eval' (MalList (MkMalList ["if", condition, trueBranch])) = evalIfStmt condition trueBranch Nothing
+eval' (MalList (MkMalList ["if", condition, trueBranch, falseBranch])) = evalIfStmt condition trueBranch (Just falseBranch)
+eval' (MalList (MkMalList ("if":_))) = throwSpecialForm "if"
 
 -- fn* special form (lambdas)
 eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
@@ -141,15 +143,18 @@ eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
       params
       currentScope
       (MkMalFunction "lambda" closure False)
+eval' (MalList (MkMalList ("fn*":_))) = throwSpecialForm "fn*"
 
 -- quote special form
 eval' (MalList (MkMalList ["quote", mt])) = pure mt
+eval' (MalList (MkMalList ("quote":_))) = throwSpecialForm "quote"
 
 -- quasiquote special form
 eval' (MalList (MkMalList ("quasiquote" : ast))) = quasiquote ast >>= eval'
 
 -- macroexpand
 eval' (MalList (MkMalList ["macroexpand", ast])) = asks interpreterScope >>= flip macroexpand ast
+eval' (MalList (MkMalList ("macroexpand":_))) = throwSpecialForm "macroexpand"
 
 -- try*/catch*
 eval' (MalList (MkMalList ["try*", tryBlock, MalList (MkMalList ["catch*", MalSymbol catchVar, catchBody])])) = do
@@ -166,6 +171,7 @@ eval' (MalList (MkMalList ["try*", tryBlock, MalList (MkMalList ["catch*", MalSy
     returnError currentScope programFilename ex = liftIO $ do
         modifyIORef' currentScope (Env.insert catchVar ex)
         eval (Just programFilename) currentScope catchBody
+eval' (MalList (MkMalList ("try*":_))) = throwSpecialForm "try*"
 
 eval' xs@(MalList _) = evalAst xs >>= evalCall  -- Here we probably have a function call.
 eval' ast            = evalAst ast              -- Otherwise just return the evaluated ast.
