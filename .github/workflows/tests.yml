@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
         ghc: ["9.0.2"]
-        cabal: ["3.0.0.0"]
+        cabal: ["3.0"]
         os: [ubuntu-latest]
 
     steps:

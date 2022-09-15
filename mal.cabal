@@ -6,7 +6,7 @@ license:            MIT
 license-file:       LICENSE
 author:             Alexander Goussas
 maintainer:         goussasalexander@gmail.com
-extra-source-files: CHANGELOG.md
+extra-source-files: README.md
 
 library
     exposed-modules:
@@ -24,12 +24,12 @@ library
           base                 ^>=4.15.1
         , megaparsec           >= 9.2.1 && < 9.3
         , containers           >= 0.6.4 && < 0.7
-        , text                 >= 1.2.5 && < 1.3
         , vector               >= 0.13.0 && < 0.14
         , transformers         >= 0.5.6 && < 0.6
         , pretty-simple        >= 4.1.1 && < 4.2
-        , stm
-        , lens
+        , lens                 >= 5.2 && < 5.3
+        , stm                  >= 2.5.0 && < 2.6
+        , text                 >= 1.2.5 && < 1.3
     hs-source-dirs:   src
     default-extensions: OverloadedStrings, BangPatterns
     default-language: Haskell2010
@@ -42,7 +42,7 @@ executable mal
         , mal
         , optparse-applicative >= 0.17.0 && < 0.18
         , readline             >= 1.0.3 && < 1.1
-        , text
+        , text                 >= 1.2.5 && < 1.3
     hs-source-dirs:   app
     default-language: Haskell2010
 
