@@ -20,6 +20,7 @@ import           Data.IORef                 (IORef, modifyIORef', newIORef,
 import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
+import           Mal.Internal.Environment   (withScope)
 
 isFalsey :: MalType -> Bool
 isFalsey (MalBool False) = True
@@ -266,6 +267,7 @@ macroexpand currentScope ast@(MalList (MkMalList (MalSymbol sym : args))) = do
     else do
       (MalTailRecFunction func) <- liftIO $ Env.find currentScope sym
       let macroFunc = func ^. tailRecFunction . fBody
-      result <- macroFunc args
-      macroexpand currentScope result
+      withScope (func ^. tailRecEnv) $ do
+        result <- macroFunc args
+        macroexpand currentScope result
 macroexpand _ ast = pure ast

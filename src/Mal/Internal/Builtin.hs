@@ -204,7 +204,8 @@ rest xs = throwInvalidArgs' "rest" xs "expected a list or a vector"
 -- | 'map' takes a list and returns a new list that is the result of applying the supplied function
 -- to every element of the original list.
 map' :: BuiltinFunction
-map' [MalTailRecFunction f, MalList (MkMalList xs)] = mkMalList <$> mapM ((f ^. tailRecFunction . fBody) . (:[])) xs
+map' [MalTailRecFunction f, MalList (MkMalList xs)] =
+  withScope (f ^. tailRecEnv) $ mkMalList <$>  mapM ((f ^. tailRecFunction . fBody) . (:[])) xs
 map' [MalFunction f, MalList (MkMalList xs)] = mkMalList <$> mapM ((f ^. fBody) . (:[])) xs
 map' xs = throwInvalidArgs' "map" xs "expected a function and a list"
 
@@ -357,7 +358,7 @@ quasiquote [ast]                                                      = pure ast
 quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
 
 apply :: BuiltinFunction
-apply (MalTailRecFunction func:xs) = apply' (func ^. tailRecFunction) xs
+apply (MalTailRecFunction func:xs) = withScope (func ^. tailRecEnv) $ apply' (func ^. tailRecFunction) xs
 apply (MalFunction func:xs)        = apply' func xs
 apply xs                           = throwInvalidArgs "apply" xs
 
