@@ -2,6 +2,10 @@
 
 This is an (almost complete) implementation of the [MAL](https://github.com/kanaka/mal) programming language in Haskell.
 
+## Examples
+
+### Hello, World!
+
 ```clojure
 (fun make-person (name)
   {"name" name})
@@ -12,6 +16,23 @@ This is an (almost complete) implementation of the [MAL](https://github.com/kana
 (let*
   (name (input "what is your name? "))
   (hello-world (make-person :name name)))
+```
+
+### FizzBuzz
+
+```clojure
+(fun fizzbuzz (from to)
+  (when (< from to)
+    (cond
+      (= 0 (mod from 15)) (println "FizzBuzz")
+      (= 0 (mod from 3))  (println "Fizz")
+      (= 0 (mod from 5))  (println "Buzz")
+      :else (println from))
+    (fizzbuzz (inc from) to)))
+
+(if (< (count *ARGV*) 2)
+  (println "Usage: fizzbuzz <n>")
+  (fizzbuzz 1 (read-string (nth *ARGV* 1))))
 ```
 
 For a more complex examples (such a command line todo app), see the `examples` directory.
