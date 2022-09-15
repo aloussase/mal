@@ -136,6 +136,14 @@ builtinsSpec = describe "builtins" $ do
             `shouldReturn` mkMalList [mkMalBool False, mkMalBool True, mkMalBool False]
         runWithScope "(= () (map str ()))" `shouldReturn` mkMalBool True
 
+    it "apply works" $ do
+        runWithScope "(apply + (list 2 3))" `shouldReturn` mkMalNumber 5
+        runWithScope "(apply + 4 (list 5))" `shouldReturn` mkMalNumber 9
+        runWithScope "(apply list (list))" `shouldReturn` mkMalList []
+        runWithScope "(apply symbol? (list (quote two)))" `shouldReturn` mkMalBool True
+        runWithScope "(apply (fn* (a b) (+ a b)) (list 2 3))" `shouldReturn` mkMalNumber 5
+        runWithScope "(apply (fn* (a b) (+ a b)) 4 (list 5))" `shouldReturn` mkMalNumber 9
+
 evaluatorSpec :: Spec
 evaluatorSpec = describe "Mal.run" $ do
     context "arithmetic" $ do

@@ -21,9 +21,6 @@ import qualified Data.Map                   as M
 import           Data.Maybe                 (fromMaybe)
 import qualified Data.Vector                as V
 
-
-type Interpreter = ReaderT MalEnv IO MalType
-
 isFalsey :: MalType -> Bool
 isFalsey (MalBool False) = True
 isFalsey MalNil          = True

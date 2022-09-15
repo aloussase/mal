@@ -8,16 +8,19 @@ module Mal.Internal.Environment (
     , insert
     , getRoot
     , printScopes
+    , withScope
 ) where
 
 import           Mal.Error
 import           Mal.Types
 
-import           Control.Exception (throwIO)
-import           Data.IORef        (IORef, readIORef)
-import           Data.Map          (Map, (!?))
-import qualified Data.Map          as M
-import           Data.Maybe        (isJust)
+import           Control.Exception          (throwIO)
+import           Control.Monad.IO.Class     (liftIO)
+import           Control.Monad.Trans.Reader (asks)
+import           Data.IORef                 (IORef, readIORef, writeIORef)
+import           Data.Map                   (Map, (!?))
+import qualified Data.Map                   as M
+import           Data.Maybe                 (isJust)
 
 -- | 'empty' creates a new empty 'MalScope'.
 empty :: MalScope
@@ -62,3 +65,11 @@ getRoot aScope = do
 -- | 'insert' insertes a new key-value pair in the provided scope.
 insert :: String -> MalType -> MalScope -> MalScope
 insert name thing self@(MkMalScope _ m) = self { scopeBindings = M.insert name thing m }
+
+-- | Evaluate an interpreter action with a different scope.
+withScope :: IORef MalScope -> Interpreter -> Interpreter
+withScope newScopeRef action = do
+  scopeRef <- asks interpreterScope
+  oldScope <- liftIO $ readIORef scopeRef
+  liftIO (readIORef newScopeRef >>= writeIORef scopeRef)
+    *> action <* liftIO (writeIORef scopeRef oldScope)

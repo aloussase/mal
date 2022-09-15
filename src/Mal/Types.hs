@@ -3,8 +3,9 @@
  Types representing the ast and environment of Mal.
  -}
 module Mal.Types (
+    Interpreter
     -- * Type class for types that can convert to @MalType@
-      MalListLike (..)
+    , MalListLike (..)
     -- * Mal data types
     , MalFunction (..)
     , MalList (..)
@@ -53,6 +54,7 @@ import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           System.IO.Unsafe           (unsafePerformIO)
 
+type Interpreter = ReaderT MalEnv IO MalType
 
 -- | A class for @MalType@s that can naturally convert to lists.
 class MalListLike a where toList :: a -> [MalType]

@@ -6,6 +6,7 @@ module Mal.Internal.Builtin ( builtins, quasiquote ) where
 
 import           Mal.Class
 import           Mal.Error
+import           Mal.Internal.Environment   (withScope)
 import qualified Mal.Internal.Environment   as Env
 import           Mal.Internal.Parser
 import           Mal.Internal.Util          (pairs)
@@ -90,6 +91,8 @@ builtins =
         , ("symbol", symbol)
         , ("vector", vector)
         , ("hash-map", hashMap)
+        -- Misc
+        , ("apply", apply)
       ]
 
 -- Arithmetic functions
@@ -319,8 +322,9 @@ swap (
     xs
     ) = do
      oldVal <- liftIO $ readTVarIO ref
-     newVal <- function ^. tailRecFunction . fBody $ oldVal:xs
-     liftIO $ atomically (swapTVar ref newVal)
+     withScope (function ^. tailRecEnv) $ do
+      newVal <- function ^. tailRecFunction . fBody $ oldVal:xs
+      liftIO $ atomically (swapTVar ref newVal)
 swap xs = liftIO $ throwIO (InvalidArgs "swap!" xs Nothing)
 
 -- Misc
@@ -351,6 +355,23 @@ quasiquote [sym@(MalSymbol _)] = pure $ mkMalList ["quote", sym]
 quasiquote [m@(MalMap _)] = pure $ mkMalList ["quote", m]
 quasiquote [ast]                                                      = pure ast
 quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
+
+apply :: BuiltinFunction
+apply (MalTailRecFunction func:xs) = apply' (func ^. tailRecFunction) xs
+apply (MalFunction func:xs)        = apply' func xs
+apply xs                           = throwInvalidArgs "apply" xs
+
+apply' :: MalFunction -> [MalType] -> ReaderT MalEnv IO MalType
+apply' func xs = do
+  case xs of
+    [MalList (MkMalList coll)]  -> func ^. fBody $ coll
+    [MalVec (MkMalVector coll)] -> func ^. fBody $ V.toList coll
+    _                           -> func ^. fBody $ do
+        let args = init xs
+        case last xs of
+          (MalList (MkMalList ys))  -> args ++ ys
+          (MalVec (MkMalVector ys)) -> args ++ V.toList ys
+          _                         -> throw $ InvalidArgs "apply" xs Nothing
 
 -- Vector functions
 

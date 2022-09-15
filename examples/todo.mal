@@ -10,10 +10,10 @@
             "else" (cons current-val (remove val (rest vals))))))
 
 (fun delete-todo (todo)
-    (swap! todos (fn* (todos) (remove todo todos))))
+    (swap! todos (partial remove todo)))
 
 (fun add-todo (todo)
-    (swap! todos (fn* (todos) (cons todo todos))))
+    (swap! todos (partial cons todo)))
 
 (fun main ()
     (let* (command (input "enter a command: "))
