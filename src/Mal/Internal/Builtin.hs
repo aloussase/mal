@@ -40,6 +40,8 @@ builtins =
         , ("-", sub)
         , ("/", quot)
         , ("*", mult)
+        , ("mod", mod')
+        -- List functions
         , ("list", list)
         , ("list?", isList)
         , ("empty?", isEmpty)
@@ -126,6 +128,9 @@ quot = reduceMalNumbers "/" div
 -- 6
 mult :: BuiltinFunction
 mult = reduceMalNumbers "*" (*)
+
+mod' :: BuiltinFunction
+mod' = reduceMalNumbers "mod" rem
 
 -- List functions
 

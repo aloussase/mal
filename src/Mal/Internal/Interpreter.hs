@@ -34,9 +34,10 @@ evalIfStmt :: MalType -> MalType -> Maybe MalType -> Interpreter
 evalIfStmt condition trueBranch falseBranch = do
   result <- eval' condition
   currentScope <- asks interpreterScope
+  fileName <- asks interpreterFilename
   if isTruthy result
-    then liftIO $ eval Nothing currentScope trueBranch
-    else liftIO $ eval Nothing currentScope (fromMaybe mkMalNil falseBranch)
+    then liftIO $ eval (Just fileName) currentScope trueBranch
+    else liftIO $ eval (Just fileName) currentScope (fromMaybe mkMalNil falseBranch)
 
 evalAst :: MalType -> Interpreter
 evalAst (MalSymbol s) = asks interpreterScope >>= liftIO . flip Env.find s

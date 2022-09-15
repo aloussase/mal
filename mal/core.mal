@@ -12,9 +12,9 @@
           ~body)))
 
 (defmacro! when
-  (fn* (condition body)
+  (fn* (condition & body)
        `(if ~condition
-          ~body)))
+          (do ~@body))))
 
 (defmacro! fun
   (fn* (fun-name args-list & body)

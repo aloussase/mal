@@ -1,0 +1,12 @@
+(fun fizzbuzz (from to)
+  (when (< from to)
+    (cond
+      (= 0 (mod from 15)) (println "FizzBuzz")
+      (= 0 (mod from 3))  (println "Fizz")
+      (= 0 (mod from 5))  (println "Buzz")
+      :else (println from))
+    (fizzbuzz (inc from) to)))
+
+(if (< (count *ARGV*) 2)
+  (println "Usage: fizzbuzz <n>")
+  (fizzbuzz 1 (read-string (nth *ARGV* 1))))
