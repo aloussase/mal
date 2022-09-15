@@ -8,7 +8,7 @@ This is an (almost complete) implementation of the [MAL](https://github.com/kana
 
 ```clojure
 (fun make-person (name)
-  {"name" name})
+  {:name name})
 
 (fun hello-world (person)
   (println (str "Hello, " (get person "name") "!")))
@@ -36,6 +36,17 @@ This is an (almost complete) implementation of the [MAL](https://github.com/kana
 ```
 
 For a more complex examples (such a command line todo app), see the `examples` directory.
+
+## Install
+
+This requires a working installation of Cabal. The easiest way to install it is
+through [ghcup](https://www.haskell.org/ghcup/).
+
+```bash
+git clone https://github.com/aloussase/mal
+cd mal
+cabal install
+```
 
 ## TODO
 
