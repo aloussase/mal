@@ -14,13 +14,13 @@ module Mal.Internal.Environment (
 import           Mal.Error
 import           Mal.Types
 
-import           Control.Exception          (throwIO)
+import           Control.Exception          (evaluate, throw)
 import           Control.Monad.IO.Class     (liftIO)
 import           Control.Monad.Trans.Reader (asks)
 import           Data.IORef                 (IORef, readIORef, writeIORef)
 import           Data.Map                   (Map, (!?))
 import qualified Data.Map                   as M
-import           Data.Maybe                 (isJust)
+import           Data.Maybe                 (fromMaybe)
 
 -- | 'empty' creates a new empty 'MalScope'.
 empty :: MalScope
@@ -40,27 +40,19 @@ fromList xs = MkMalScope { scopeParent = Nothing, scopeBindings = M.fromList xs 
 -- If @s@ is not in @scope@, it is recursively searched for in the @scope@'s parent.
 -- Finally, this function throws an 'UnboundSymbol' exception if @s@ is not bound.
 find :: IORef MalScope -> String -> IO MalType
-find !env !s = do
-    currentScope <- readIORef env
-    result <- go (scopeParent currentScope) (scopeBindings currentScope)
-    maybe (throwIO $ UnboundSymbol s) pure result
-
+find !env !s = evaluate =<< (readIORef env >>= uncurry go . (\scope -> (scopeParent scope, scopeBindings scope)))
     where
-        go :: Maybe (IORef MalScope) -> Map String MalType -> IO (Maybe MalType)
-        go Nothing currentScopeBindings = pure $ currentScopeBindings !? s
-        go (Just currentScopeParent) currentScopeBindings
-            | isJust (currentScopeBindings !? s) = pure $ currentScopeBindings !? s
+        go :: Maybe (IORef MalScope) -> Map String MalType -> IO MalType
+        go Nothing !currentScopeBindings = pure $ fromMaybe (throw $ UnboundSymbol s) (currentScopeBindings !? s)
+        go (Just !currentScopeParent) !currentScopeBindings
+            | Just bindings <- currentScopeBindings !? s = pure bindings
             | otherwise = do
                 parentScope <- readIORef currentScopeParent
                 go (scopeParent parentScope) (scopeBindings parentScope)
 
 -- | 'getRoot' returns the root environment reachable from the provided scope.
 getRoot :: IORef MalScope -> IO (IORef MalScope)
-getRoot aScope = do
-    currentRef <- readIORef aScope
-    case scopeParent currentRef of
-        Just parent -> getRoot parent
-        Nothing     -> pure aScope
+getRoot aScope = readIORef aScope >>= maybe (pure aScope) getRoot . scopeParent
 
 -- | 'insert' insertes a new key-value pair in the provided scope.
 insert :: String -> MalType -> MalScope -> MalScope
