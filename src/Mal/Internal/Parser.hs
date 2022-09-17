@@ -56,17 +56,17 @@ readSymbol = label "symbol" $ do
         "false" -> mkMalBool False
         _       -> mkMalSymbol token'
 
-readListLike :: (MalListLike a) => String -> Text -> Text -> ([MalType] -> a) -> Parser a
+readListLike :: String -> Text -> Text -> ([MalType] -> a) -> Parser a
 readListLike lbl start end f =  label lbl (symbol start *> many readForm <* symbol end <&> f)
 
 readList :: Parser MalType
-readList = MalList <$> readListLike "list" "(" ")" MkMalList
+readList = readListLike "list" "(" ")" mkMalList
 
 readVector :: Parser MalType
-readVector = MalVec <$> readListLike "vector" "[" "]" (MkMalVector . V.fromList)
+readVector = MalVector <$> readListLike "vector" "[" "]" V.fromList
 
 readMap :: Parser MalType
-readMap = MalMap <$> readListLike "hash-map" "{" "}" (MkMalMap . M.fromList . pairs)
+readMap = MalMap <$> readListLike "hash-map" "{" "}" (M.fromList . pairs)
 
 readAtom :: Parser MalType
 readAtom = label "atom" $ choice

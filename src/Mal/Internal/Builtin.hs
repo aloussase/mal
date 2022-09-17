@@ -30,7 +30,7 @@ import qualified Data.Vector                as V
 import           System.IO                  (readFile')
 import qualified System.IO                  as SIO
 
-type BuiltinFunction = [MalType] -> ReaderT MalEnv IO MalType
+type BuiltinFunction = [MalType] -> Interpreter
 
 builtins :: MalScope
 builtins =
@@ -153,21 +153,21 @@ isList _           = liftMalType False
 
 -- | Return true is the argument is a list and is empty, false otherwise.
 isEmpty :: BuiltinFunction
-isEmpty [MalList (MkMalList [])] = liftMalType True
-isEmpty _                        = liftMalType False
+isEmpty [MalList []] = liftMalType True
+isEmpty _            = liftMalType False
 
 -- | Return the number of elements in the provided list.
 count :: BuiltinFunction
-count [MalList (MkMalList xs)] = liftMalType . length $ xs
-count xs                       = throwInvalidArgs' "count" xs "expected a list"
+count [MalList xs] = liftMalType . length $ xs
+count xs           = throwInvalidArgs' "count" xs "expected a list"
 
 -- | Prepend an element to a list.
 --
 -- >>> (cons 12 (list 1 2 3))
 -- (12 1 2 3)
 cons :: BuiltinFunction
-cons [mt, MalList (MkMalList xs)] = pure $ mkMalList (mt:xs)
-cons [mt, MalVec (MkMalVector vs)] = pure $ mkMalList (mt : V.toList vs)
+cons [mt, MalList xs] = pure $ mkMalList (mt:xs)
+cons [mt, MalVector vs] = pure $ mkMalList (mt : V.toList vs)
 cons xs = throwInvalidArgs' "concat" xs "expected a thing and a list"
 
 -- | 'concat' concatenates the provided lists.
@@ -178,18 +178,18 @@ concat' :: BuiltinFunction
 concat' =  pure . mkMalList . flatten []
     where
         flatten :: [MalType] -> [MalType] -> [MalType]
-        flatten acc (MalList (MkMalList xs):rest') = flatten (acc ++ xs) rest'
-        flatten acc (MalVec (MkMalVector vs):rest') = flatten (acc ++ V.toList vs) rest'
+        flatten acc ((MalList xs):rest') = flatten (acc ++ xs) rest'
+        flatten acc (MalVector vs : rest') = flatten (acc ++ V.toList vs) rest'
         flatten acc []                            = acc
         flatten _ xs = throw (InvalidArgs "concat" xs $ Just "expected lists")
 
 -- | 'nth' returns the element at the specified position in the provided list or
 -- vector. Throws IndexOutOfBounds.
 nth :: BuiltinFunction
-nth [MalList (MkMalList xs), MalNumber idx] =
+nth [MalList xs, MalNumber idx] =
     if idx >= length xs then liftIO $ throwIO (IndexOutOfBounds idx $ length xs)
     else pure $ xs !! idx
-nth [MalVec (MkMalVector vs), MalNumber idx] =
+nth [MalVector vs, MalNumber idx] =
     if idx >= V.length vs then liftIO $ throwIO (IndexOutOfBounds idx $ V.length vs)
     else pure (vs V.! idx)
 nth xs = throwInvalidArgs' "nth" xs "expected a list or a vector"
@@ -197,23 +197,23 @@ nth xs = throwInvalidArgs' "nth" xs "expected a list or a vector"
 -- | 'first' returns the first element of the provided list or vector, or nil if they
 -- are empty.
 first :: BuiltinFunction
-first [MalList (MkMalList xs)] = pure $ if null xs then mkMalNil else head xs
-first [MalVec (MkMalVector vs)] = pure $ if V.null vs then mkMalNil else V.head vs
+first [MalList xs] = pure $ if null xs then mkMalNil else head xs
+first [MalVector vs] = pure $ if V.null vs then mkMalNil else V.head vs
 first xs = throwInvalidArgs' "first" xs "expected a list or a vector"
 
 -- | 'rest' returns all but the first element of the provided list or vector, or nil if they
 -- are empty.
 rest :: BuiltinFunction
-rest [MalList (MkMalList xs)] = pure $ if null xs then mkMalList [] else mkMalList $ tail xs
-rest [MalVec (MkMalVector vs)] = pure $ if V.null vs then mkMalList [] else MalVec $ MkMalVector (V.tail vs)
+rest [MalList xs] = pure $ if null xs then mkMalList [] else mkMalList $ tail xs
+rest [MalVector vs] = pure $ if V.null vs then mkMalList [] else MalVector (V.tail vs)
 rest xs = throwInvalidArgs' "rest" xs "expected a list or a vector"
 
 -- | 'map' takes a list and returns a new list that is the result of applying the supplied function
 -- to every element of the original list.
 map' :: BuiltinFunction
-map' [MalTailRecFunction f, MalList (MkMalList xs)] =
+map' [MalTailRecFunction f, MalList xs] =
   withScope (f ^. tailRecEnv) $ mkMalList <$>  mapM ((f ^. tailRecFunction . fBody) . (:[])) xs
-map' [MalFunction f, MalList (MkMalList xs)] = mkMalList <$> mapM ((f ^. fBody) . (:[])) xs
+map' [MalFunction f, MalList xs] = mkMalList <$> mapM ((f ^. fBody) . (:[])) xs
 map' xs = throwInvalidArgs' "map" xs "expected a function and a list"
 
 -- Logic functions
@@ -351,20 +351,20 @@ apply xs                           = throwInvalidArgs "apply" xs
 apply' :: MalFunction -> [MalType] -> ReaderT MalEnv IO MalType
 apply' func xs = do
   case xs of
-    [MalList (MkMalList coll)]  -> func ^. fBody $ coll
-    [MalVec (MkMalVector coll)] -> func ^. fBody $ V.toList coll
+    [MalList coll]  -> func ^. fBody $ coll
+    [MalVector coll] -> func ^. fBody $ V.toList coll
     _                           -> func ^. fBody $ do
         let args = init xs
         case last xs of
-          (MalList (MkMalList ys))  -> args ++ ys
-          (MalVec (MkMalVector ys)) -> args ++ V.toList ys
-          _                         -> throw $ InvalidArgs "apply" xs Nothing
+          (MalList ys)   -> args ++ ys
+          (MalVector ys) -> args ++ V.toList ys
+          _              -> throw $ InvalidArgs "apply" xs Nothing
 
 -- Vector functions
 
 vec :: BuiltinFunction
-vec [MalList (MkMalList xs)] = pure $ mkMalVector xs
-vec [vs@(MalVec _)] = pure vs
+vec [MalList xs] = pure $ mkMalVector xs
+vec [vs@(MalVector _)] = pure vs
 vec xs = liftIO $ throwIO (InvalidArgs "vec" xs (Just "expected a list"))
 
 -- Map functions
@@ -372,34 +372,34 @@ vec xs = liftIO $ throwIO (InvalidArgs "vec" xs (Just "expected a list"))
 -- | Takes a map and a variable number of arguments and returns a new map that is the result
 -- of adding the rest key-value pairs to the provided map.
 assoc :: BuiltinFunction
-assoc (MalMap (MkMalMap m):rest') = pure $ MalMap (MkMalMap $ m `M.union` M.fromList (pairs rest'))
+assoc (MalMap   m:rest') = pure $ MalMap   $ m `M.union` M.fromList (pairs rest')
 assoc xs = throwInvalidArgs "assoc" xs
 
 -- | 'dissoc' takes a map and a list of keys and returns a new map with all those keys removed.
 dissoc :: BuiltinFunction
-dissoc (MalMap (MkMalMap m):rest') = pure $ MalMap (MkMalMap $ foldr M.delete m rest')
-dissoc xs = throwInvalidArgs "dissoc" xs
+dissoc (MalMap   m:rest') = pure $ MalMap   $ foldr M.delete m rest'
+dissoc xs                 = throwInvalidArgs "dissoc" xs
 
 -- | 'get' takes a map and a key and returns the value associated with that key, or nil
 -- if none is.
 get :: BuiltinFunction
-get [MalMap (MkMalMap m), key] = pure $ fromMaybe mkMalNil (m !? key)
+get [MalMap   m, key] = pure $ fromMaybe mkMalNil (m !? key)
 get xs = throwInvalidArgs' "get" xs "expected a hash-map and a key"
 
 -- | 'mapContains' takes a map and a key and returns true if the map contains the given key.
 mapContains :: BuiltinFunction
-mapContains [MalMap (MkMalMap m), key] = pure $ mkMalBool (key `M.member` m)
+mapContains [MalMap   m, key] = pure $ mkMalBool (key `M.member` m)
 mapContains xs = throwInvalidArgs' "contains?" xs "expected a hash-map and a key"
 
 -- | 'keys' returns a list of keys of the provided map.
 keys :: BuiltinFunction
-keys [MalMap (MkMalMap m)] = pure $ mkMalList (M.keys m)
-keys xs                    = throwInvalidArgs' "keys" xs "expected a map"
+keys [MalMap   m] = pure $ mkMalList (M.keys m)
+keys xs           = throwInvalidArgs' "keys" xs "expected a map"
 
 -- | 'vals' returns a list of values of the provided map.
 vals :: BuiltinFunction
-vals [MalMap (MkMalMap m)] = pure $ mkMalList (M.elems m)
-vals xs                    = throwInvalidArgs' "vals" xs "expected a map"
+vals [MalMap   m] = pure $ mkMalList (M.elems m)
+vals xs           = throwInvalidArgs' "vals" xs "expected a map"
 
 -- Exception related functions
 
@@ -434,15 +434,15 @@ isSymbol xs            = throwInvalidArgs "symbol?" xs
 
 -- | 'isSequential' returns True if its argument is a list or a vector.
 isSequential :: BuiltinFunction
-isSequential [MalList _] = pure $ mkMalBool True
-isSequential [MalVec _]  = pure $ mkMalBool True
-isSequential [_]         = pure $ mkMalBool False
-isSequential xs          = throwInvalidArgs "sequential?" xs
+isSequential [MalList _]   = pure $ mkMalBool True
+isSequential [MalVector _] = pure $ mkMalBool True
+isSequential [_]           = pure $ mkMalBool False
+isSequential xs            = throwInvalidArgs "sequential?" xs
 
 isVector :: BuiltinFunction
-isVector [MalVec _] = pure $ mkMalBool True
-isVector [_]        = pure $ mkMalBool False
-isVector xs         = throwInvalidArgs "vector?" xs
+isVector [MalVector _] = pure $ mkMalBool True
+isVector [_]           = pure $ mkMalBool False
+isVector xs            = throwInvalidArgs "vector?" xs
 
 -- Constructor functions
 

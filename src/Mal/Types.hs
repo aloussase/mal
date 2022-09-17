@@ -5,13 +5,9 @@
 module Mal.Types (
     Interpreter
     -- * Type class for types that can convert to @MalType@
-    , MalListLike (..)
     -- * Mal data types
     , MalFunction (..)
-    , MalList (..)
-    , MalMap (..)
     , MalType (..)
-    , MalVector (..)
     , MalTailRecFunction (..)
     -- * Env things
     , MalEnv (..)
@@ -29,6 +25,8 @@ module Mal.Types (
     , mkMalSymbol
     , mkMalVector
     , mkMalAtom
+    , malVectorToList
+    , malMapToList
     -- * Type predicates
     , isKeyword
     -- * Lenses
@@ -58,27 +56,16 @@ import           System.IO.Unsafe           (unsafePerformIO)
 
 type Interpreter = ReaderT MalEnv IO MalType
 
--- | A class for @MalType@s that can naturally convert to lists.
-class MalListLike a where toList :: a -> [MalType]
-
 -- Mal data types
 
--- | The vector data type in Mal.
-newtype MalVector = MkMalVector (Vector MalType) deriving (Show, Eq, Ord)
+malVectorToList :: Vector MalType -> [MalType]
+malVectorToList = V.toList
 
--- | The workhorse data type in Mal.
-newtype MalList = MkMalList [MalType] deriving (Show, Eq, Ord)
+malMapToList :: Map MalType MalType -> [MalType]
+malMapToList = M.foldlWithKey' (\xs k v -> k:v:xs) []
 
--- | The hash-map data type in Mal.
-newtype MalMap = MkMalMap (Map MalType MalType) deriving (Show, Eq, Ord)
-
-instance MalListLike MalVector  where toList (MkMalVector vs) = V.toList vs
-instance MalListLike MalList where toList (MkMalList xs) = xs
-instance MalListLike MalMap where
-    toList (MkMalMap m) = M.foldlWithKey' (\xs k v -> k:v:xs) [] m
-
-showListLike :: (MalListLike a) => String -> String -> a -> String
-showListLike start end xs = mconcat [start, unwords . map show . toList $ xs, end]
+showListLike :: (Show a) => String -> String -> [a] -> String
+showListLike start end xs = mconcat [start, unwords $ map show xs, end]
 
 -- | A data type in the Mal language.
 data MalType =
@@ -88,9 +75,9 @@ data MalType =
         | MalKeyword String
         | MalBool Bool
         | MalNil
-        | MalList MalList
-        | MalVec MalVector
-        | MalMap MalMap
+        | MalList [MalType]
+        | MalVector (Vector MalType)
+        | MalMap (Map MalType MalType)
         | MalFunction MalFunction
         | MalTailRecFunction MalTailRecFunction
         | MalAtom (TVar MalType)
@@ -108,8 +95,8 @@ instance Show MalType where
     show (MalBool False) = "#f"
     show MalNil          = "nil"
     show (MalList xs)    = showListLike "(" ")" xs
-    show (MalVec vs)     = showListLike "[" "]" vs
-    show (MalMap m)      = showListLike "{" "}" m
+    show (MalVector vs)     = showListLike "[" "]" $ malVectorToList vs
+    show (MalMap m)      = showListLike "{" "}" $ malMapToList m
     show (MalFunction f) = show f
     show (MalAtom ref)   = mconcat ["<atom: ", show $ unsafePerformIO (readTVarIO ref), ">"]
     show (MalTailRecFunction (MkMalTailRecFunction body params _ _)) =
@@ -124,7 +111,7 @@ instance Ord MalType where
     compare (MalString x)          (MalString y)          = compare x y
     compare (MalBool x)            (MalBool y)            = compare x y
     compare (MalList x)            (MalList y)            = compare x y
-    compare (MalVec x)             (MalVec y)             = compare x y
+    compare (MalVector x)          (MalVector y)             = compare x y
     compare (MalMap x)             (MalMap y)             = compare x y
     compare (MalFunction x)        (MalFunction y)        = compare x y
     compare (MalTailRecFunction x) (MalTailRecFunction y) = compare x y
@@ -183,16 +170,16 @@ mkMalNil = MalNil
 
 -- | Make a Mal list from the provided list of 'MalType'.
 mkMalList :: [MalType] -> MalType
-mkMalList = MalList . MkMalList
+mkMalList = MalList
 
 -- | Make a Mal list from the provided list of 'MalType'.
 mkMalVector :: [MalType] -> MalType
-mkMalVector = MalVec . MkMalVector . V.fromList
+mkMalVector = MalVector . V.fromList
 
 -- | Make a Mal list from the provided list of 'MalType'.
 -- Each pair of successive elements is a key-value pair in the resulting map.
 mkMalMap :: [MalType] -> MalType
-mkMalMap = MalMap . MkMalMap . M.fromList . pairs
+mkMalMap = MalMap . M.fromList . pairs
 
 mkMalAtom :: (MonadIO m) => MalType -> m MalType
 mkMalAtom t = MalAtom <$> liftIO (newTVarIO t)

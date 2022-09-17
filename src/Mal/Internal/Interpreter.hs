@@ -31,12 +31,12 @@ eval filename initialScope ast = do
 
 evalAst :: MalType -> Interpreter
 evalAst (MalSymbol s) = asks interpreterScope >>= liftIO . flip Env.find s
-evalAst (MalList (MkMalList xs)) = mkMalList <$> traverse eval' xs
-evalAst (MalVec (MkMalVector vs)) = mkMalVector <$> traverse eval' (V.toList vs)
-evalAst (MalMap (MkMalMap m)) = do
+evalAst (MalList xs) = mkMalList <$> traverse eval' xs
+evalAst (MalVector vs) = mkMalVector <$> traverse eval' (V.toList vs)
+evalAst (MalMap m) = do
   let (ks, vs) = unzip . M.toList $ m
   vs' <- traverse eval' vs
-  pure $ MalMap (MkMalMap (M.fromList (zip ks vs')))
+  pure $ MalMap (M.fromList (zip ks vs'))
 evalAst ast = pure ast
 
 eval' :: MalType -> Interpreter
@@ -48,7 +48,7 @@ eval' :: MalType -> Interpreter
 --
 -- TODO: Consider implementing a `local` special form to define local variables like in Fennel.
 --
-eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
+eval' (MalList ["def!", MalSymbol name, val]) = do
   evaledVal <- eval' val
   globalScope <- asks interpreterScope >>= liftIO . Env.getRoot
   let value = case evaledVal of
@@ -56,14 +56,14 @@ eval' (MalList (MkMalList ["def!", MalSymbol name, val])) = do
         _ -> evaledVal
   liftIO $ modifyIORef' globalScope (Env.insert name value)
   pure mkMalNil
-eval' (MalList (MkMalList ("def!":_))) = throwSpecialForm "def!"
+eval' (MalList ("def!":_)) = throwSpecialForm "def!"
 
 -- defmacro!
 --
 -- A macro is just a function marked as a macro. This will allow us to treat it diffrently
 -- when the time to evaluate a macro call comes.
 --
-eval' (MalList (MkMalList ["defmacro!", MalSymbol name, val])) = do
+eval' (MalList ["defmacro!", MalSymbol name, val]) = do
   evaledVal <- eval' val
   case evaledVal of
     (MalTailRecFunction f) -> do
@@ -77,7 +77,7 @@ eval' (MalList (MkMalList ["defmacro!", MalSymbol name, val])) = do
           )
       pure MalNil
     other -> liftIO $ throwIO (InvalidArgs "defmacro!" [other] Nothing)
-eval' (MalList (MkMalList ("defmacro!":_))) = throwSpecialForm "defmacro!"
+eval' (MalList ("defmacro!":_)) = throwSpecialForm "defmacro!"
 
 -- let special form
 --
@@ -91,23 +91,28 @@ eval' (MalList (MkMalList ("defmacro!":_))) = throwSpecialForm "defmacro!"
 -- Clojure has another macro called letfn that behaves like the latter and like the let we will
 -- be implementing.
 --
-eval' (MalList (MkMalList ("let*" : MalList (MkMalList bindings) : body))) = do
+eval' (MalList ("let*" : MalList bindings : body)) = do
+  -- Create a new scope for let*
   currentScope <- asks interpreterScope
   letScope <- liftIO $ newIORef Env.empty {scopeParent = Just currentScope}
-  letBindings <- liftIO $ forM (pairs bindings) (\(MalSymbol k, v) -> (,) k <$> eval Nothing letScope v)
 
+  -- Create the let* bindings using the let scope.
+  --
+  -- Here we need scopes to be mutable is functions defined in a let* are to have access to bindings
+  -- created later.
+  letBindings <- liftIO $ forM (pairs bindings) (\(MalSymbol k, v) -> (,) k <$> eval Nothing letScope v)
   liftIO $ modifyIORef' letScope (\s -> s {scopeBindings = M.fromList letBindings})
 
   -- This let's us do TCO. The alternative would be to do
   -- >>> eval' body
   liftIO $ eval Nothing letScope (mkMalList $ "do" : body)
-eval' (MalList (MkMalList ("let*":_))) = throwSpecialForm "let*"
+eval' (MalList ("let*":_)) = throwSpecialForm "let*"
 
 -- do special form
 --
 -- Evaluates the forms in its body one at a time and return the result of the last form.
 --
-eval' (MalList (MkMalList ("do" : body))) =
+eval' (MalList ("do" : body)) =
   if null body
     then pure mkMalNil
     else do
@@ -115,12 +120,12 @@ eval' (MalList (MkMalList ("do" : body))) =
       liftIO $ last <$> mapM (eval Nothing currentScope) body
 
 -- if special form
-eval' (MalList (MkMalList ["if", condition, trueBranch])) = evalIfStmt condition trueBranch Nothing
-eval' (MalList (MkMalList ["if", condition, trueBranch, falseBranch])) = evalIfStmt condition trueBranch (Just falseBranch)
-eval' (MalList (MkMalList ("if":_))) = throwSpecialForm "if"
+eval' (MalList ["if", condition, trueBranch]) = evalIfStmt condition trueBranch Nothing
+eval' (MalList ["if", condition, trueBranch, falseBranch]) = evalIfStmt condition trueBranch (Just falseBranch)
+eval' (MalList ("if":_)) = throwSpecialForm "if"
 
 -- fn* special form (lambdas)
-eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
+eval' (MalList ["fn*", MalList params, body]) = do
   let closure :: [MalType] -> Interpreter
       closure args = do
         -- Create a new environment from the outer scope and bind the function arguments in it.
@@ -143,21 +148,21 @@ eval' (MalList (MkMalList ["fn*", MalList (MkMalList params), body])) = do
       params
       currentScope
       (MkMalFunction "lambda" closure False)
-eval' (MalList (MkMalList ("fn*":_))) = throwSpecialForm "fn*"
+eval' (MalList ("fn*":_)) = throwSpecialForm "fn*"
 
 -- quote special form
-eval' (MalList (MkMalList ["quote", mt])) = pure mt
-eval' (MalList (MkMalList ("quote":_))) = throwSpecialForm "quote"
+eval' (MalList ["quote", mt]) = pure mt
+eval' (MalList ("quote":_)) = throwSpecialForm "quote"
 
 -- quasiquote special form
-eval' (MalList (MkMalList ("quasiquote" : ast))) = quasiquote ast >>= eval'
+eval' (MalList ("quasiquote" : ast)) = quasiquote ast >>= eval'
 
 -- macroexpand
-eval' (MalList (MkMalList ["macroexpand", ast])) = asks interpreterScope >>= flip macroexpand ast
-eval' (MalList (MkMalList ("macroexpand":_))) = throwSpecialForm "macroexpand"
+eval' (MalList ["macroexpand", ast]) = asks interpreterScope >>= flip macroexpand ast
+eval' (MalList ("macroexpand":_)) = throwSpecialForm "macroexpand"
 
 -- try*/catch*
-eval' (MalList (MkMalList ["try*", tryBlock, MalList (MkMalList ["catch*", MalSymbol catchVar, catchBody])])) = do
+eval' (MalList ["try*", tryBlock, MalList ["catch*", MalSymbol catchVar, catchBody]]) = do
   currentScope <- asks interpreterScope
   programFilename <- asks interpreterFilename
   liftIO $ eval (Just programFilename) currentScope tryBlock `catches `
@@ -171,7 +176,7 @@ eval' (MalList (MkMalList ["try*", tryBlock, MalList (MkMalList ["catch*", MalSy
     returnError currentScope programFilename ex = liftIO $ do
         modifyIORef' currentScope (Env.insert catchVar ex)
         eval (Just programFilename) currentScope catchBody
-eval' (MalList (MkMalList ("try*":_))) = throwSpecialForm "try*"
+eval' (MalList ("try*":_)) = throwSpecialForm "try*"
 
 eval' xs@(MalList _) = evalAst xs >>= evalCall  -- Here we probably have a function call.
 eval' ast            = evalAst ast              -- Otherwise just return the evaluated ast.
@@ -189,12 +194,12 @@ eval' ast            = evalAst ast              -- Otherwise just return the eva
 -- For anything else, throw an error.
 --
 evalCall :: MalType -> Interpreter
-evalCall (MalList (MkMalList (MalFunction func : args))) = func ^. fBody $ args
-evalCall (MalList (MkMalList (MalTailRecFunction (MkMalTailRecFunction body params env func) : args))) = do
+evalCall (MalList (MalFunction func : args)) = func ^. fBody $ args
+evalCall (MalList (MalTailRecFunction (MkMalTailRecFunction body params env func) : args)) = do
   let argBindings = M.fromList $ mkFnBindings (func^.fName) params args
       functionScope = Env.empty {scopeParent = Just env, scopeBindings = argBindings}
   liftIO $ newIORef functionScope >>= flip (eval Nothing) body
-evalCall (MalList (MkMalList (x : _))) = liftIO $ throwIO (NotAFunction x)
+evalCall (MalList (x : _)) = liftIO $ throwIO (NotAFunction x)
 evalCall ast = pure ast
 
 -- | Bind a list of function names to the corresponding arguments.
@@ -222,15 +227,15 @@ mkFnBindings functionName = go []
 -- https://github.com/kanaka/mal/blob/master/process/guide.md#step-7-quoting
 --
 quasiquote :: [MalType] -> Interpreter
-quasiquote [MalList (MkMalList ["unquote", ast])] = pure ast
-quasiquote [MalList (MkMalList ast)] = go ast
+quasiquote [MalList ["unquote", ast]] = pure ast
+quasiquote [MalList ast] = go ast
     where
-        go (MalList (MkMalList ["splice-unquote", elt]):rest') = do
+        go ((MalList ["splice-unquote", elt]):rest') = do
             result <- go rest'
             -- This assumes that elt will eventually resolve to a list.
             pure $ mkMalList ["concat", elt, result]
         go (elt:ys) = do
-            result <- quasiquote [elt]  -- Quasiquote elt
+            result <- quasiquote [elt]   -- Quasiquote elt
             rest' <- go ys               -- Process the rest
             pure $ mkMalList ["cons", result, rest']
         -- If the ast is empty just return it as is.
@@ -244,7 +249,7 @@ quasiquote xs = liftIO $ throwIO (InvalidArgs "quasiquote" xs Nothing)
 -- first element of the AST corresponds to a function that has the @fIsMacro@
 -- attribute set to true, or false otherwise.
 isMacroCall :: IORef MalScope -> MalType -> IO Bool
-isMacroCall currentScope (MalList (MkMalList (MalSymbol sym : _))) = do
+isMacroCall currentScope (MalList (MalSymbol sym : _)) = do
   func <- catch (Env.find currentScope sym) (\(_ :: MalError) -> pure mkMalNil)
   case func of
     (MalTailRecFunction tailRec) -> pure $  tailRec ^. tailRecFunction . fIsMacro
@@ -262,7 +267,7 @@ isMacroCall _ _ = pure False
 --
 -- Else, if AST is not a macro call just return it as is.
 macroexpand :: IORef MalScope -> MalType -> Interpreter
-macroexpand currentScope ast@(MalList (MkMalList (MalSymbol sym : args))) = do
+macroexpand currentScope ast@(MalList (MalSymbol sym : args)) = do
   isMacro <- liftIO $ isMacroCall currentScope ast
   if not isMacro
     then pure ast
