@@ -1,6 +1,6 @@
 # mal
 
-This is an (almost complete) implementation of the [MAL](https://github.com/kanaka/mal) programming language in Haskell.
+This is an implementation of the [ML](https://github.com/kanaka/mal) programming language in Haskell.
 
 ## Examples
 
@@ -47,18 +47,6 @@ git clone https://github.com/aloussase/mal
 cd mal
 cabal install
 ```
-
-## TODO
-
-This is a list of additional features not available in the original Mal
-language that I am planning to implement, feel free to open a PR if you
-want to add any of them:
-
-- [x] keywords - this are specified in the original mal
-- [ ] records - simplified haskell-like records
-- [x] ~named arguments by default - like in [Jakt](https://github.com/SerenityOS/jakt)~
-  - optional positional named arguments were added
-- [ ] better error messages in the interpreter
 
 ## License
 
