@@ -1,6 +1,6 @@
 # mal
 
-This is an implementation of the [ML](https://github.com/kanaka/mal) programming language in Haskell.
+This is an implementation of the [Mal](https://github.com/kanaka/mal) programming language in Haskell.
 
 ## Examples
 
