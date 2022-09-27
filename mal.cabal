@@ -22,14 +22,14 @@ library
         , Mal.Internal.Util
     build-depends:
           base                 ^>=4.15.1
-        , megaparsec           >= 9.2.1 && < 9.3
         , containers           >= 0.6.4 && < 0.7
-        , vector               >= 0.13.0 && < 0.14
-        , transformers         >= 0.5.6 && < 0.6
-        , pretty-simple        >= 4.1.1 && < 4.2
         , lens                 >= 5.2 && < 5.3
+        , megaparsec           >= 9.2.1 && < 9.3
+        , pretty-simple        >= 4.1.1 && < 4.2
         , stm                  >= 2.5.0 && < 2.6
-        , text                 ^>= 2.0.1
+        , text
+        , transformers         >= 0.5.6 && < 0.6
+        , vector               >= 0.13.0 && < 0.14
     hs-source-dirs:   src
     default-extensions: OverloadedStrings, BangPatterns
     default-language: Haskell2010
@@ -40,11 +40,29 @@ executable mal
     build-depends:
           base                 ^>=4.15.1
         , mal
-        , optparse-applicative >= 0.17.0 && < 0.18
-        , readline             >= 1.0.3 && < 1.1
-        , text                 ^>= 2.0.1
+        , optparse-applicative
+        , readline
+        , text
     hs-source-dirs:   app
     default-language: Haskell2010
+
+executable mal-editor
+    main-is:          Main.hs
+    other-modules:    Mal.Editor.State
+                    , Mal.Editor.Gui.TextEditor
+                    , Mal.Editor.Gui.Toolbar
+    ghc-options:      -Wall -Wunused-packages
+    build-depends:
+          mal
+        , base                          ^>=4.15.1
+        , gi-gtk                        >=4.0.5 && <=4.0.6
+        , gi-gio
+        , haskell-gi-base               >= 0.26.1 && < 0.27
+        , haskell-gi-overloading        ==0.0.*
+        , text
+    hs-source-dirs:   editor
+    default-language: Haskell2010
+    default-extensions: OverloadedStrings
 
 test-suite mal-test
     default-language: Haskell2010

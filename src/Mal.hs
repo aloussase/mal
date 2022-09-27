@@ -17,6 +17,7 @@ module Mal (
     , module Mal.Class
     , module Mal.PrettyPrinter
     , emptyScope
+    , runOnce
     , run
     , eval
     , parse
@@ -35,6 +36,7 @@ import           Control.Monad            (void, when)
 import           Data.IORef               (IORef, modifyIORef', newIORef,
                                            readIORef)
 import           Data.Text                (Text)
+import qualified Data.Text                as T
 import qualified Data.Text.IO             as TIO (readFile)
 import           System.Environment       (getArgs)
 
@@ -44,6 +46,12 @@ emptyScope =  newIORef Env.empty
 
 coreFile :: FilePath
 coreFile = "mal/core.mal"
+
+runOnce :: Maybe MalFilename -> Text -> IO Text
+runOnce filename program = do
+  initialScope <- emptyScope
+  result <- run filename initialScope program
+  pure $ T.pack $ show result
 
 -- | Execute the provided Mal program, using @scope@ as the initial interpreter state.
 run :: Maybe MalFilename -> IORef MalScope -> Text -> IO MalType
