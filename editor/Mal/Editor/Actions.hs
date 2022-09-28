@@ -18,6 +18,7 @@ import           Control.Monad                 (void)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import qualified GI.Gio                        as Gio
+import qualified GI.Gtk                        as Gtk
 
 data AppAction =
   AppQuit
@@ -37,9 +38,13 @@ createActions handle = do
   runCodeAction <- Gio.simpleActionNew "run-code" Nothing
   void $ Gio.onSimpleActionActivate runCodeAction (const $ getAction AppRunCode handle)
 
+  aboutAction <- Gio.simpleActionNew "show-about" Nothing
+  void $ Gio.onSimpleActionActivate aboutAction (const $ getAction AppShowAbout handle)
+
   mapM_  (Gio.actionMapAddAction app)
     [ quitAction
     , runCodeAction
+    , aboutAction
     ]
 
 toActionName :: AppAction -> Text
@@ -66,5 +71,15 @@ getAction AppQuit _ = do
 getAction AppNewFile _appState = undefined
 getAction AppOpenFile _appState = undefined
 getAction AppSaveFile _appState = undefined
-getAction AppShowAbout _appState = undefined
 
+getAction AppShowAbout _ = do
+  aboutDialog <- Gtk.aboutDialogNew
+
+  Gtk.aboutDialogSetAuthors aboutDialog ["Alexander Goussas"]
+  Gtk.aboutDialogSetComments aboutDialog
+    $ Just "Text editor for the Mal programming language."
+  Gtk.aboutDialogSetCopyright aboutDialog $ Just "Alexander Goussas 2022"
+  Gtk.aboutDialogSetProgramName aboutDialog $ Just "Mal Editor"
+  Gtk.aboutDialogSetWebsite aboutDialog $ Just "https://github.com/aloussase/mal.git"
+
+  Gtk.widgetShow aboutDialog
