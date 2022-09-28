@@ -9,12 +9,13 @@ where
 
 import qualified Mal
 
-import           Mal.Editor.Application.Handle (appTextEditor)
+import           Mal.Editor.Application.Handle (appApplication, appTextEditor)
 import qualified Mal.Editor.Application.Handle as App
+import qualified Mal.Editor.MessageDialog      as MessageDialog
 import qualified Mal.Editor.TextEditor         as TextEditor
 
 import           Control.Lens
-import           Control.Monad                 (void)
+import           Control.Monad                 (forM_, void)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import qualified GI.Gio                        as Gio
@@ -28,24 +29,24 @@ data AppAction =
   | AppSaveFile
   | AppShowAbout
 
+
+createAction :: App.Handle -> Text -> AppAction -> IO Gio.SimpleAction
+createAction handle actionName actionType = do
+  action <- Gio.simpleActionNew actionName Nothing
+  void $ Gio.onSimpleActionActivate action (const $ getAction actionType handle)
+  pure action
+
 createActions :: App.Handle -> IO ()
 createActions handle = do
   Just app <- Gio.applicationGetDefault
 
-  quitAction <- Gio.simpleActionNew "quit" Nothing
-  void $ Gio.onSimpleActionActivate quitAction (const $ getAction AppQuit handle)
+  actions <- sequence [ createAction handle "quit" AppQuit
+                      , createAction handle "run-code" AppRunCode
+                      , createAction handle "show-about" AppShowAbout
+                      , createAction handle "new-file" AppNewFile
+                      ]
 
-  runCodeAction <- Gio.simpleActionNew "run-code" Nothing
-  void $ Gio.onSimpleActionActivate runCodeAction (const $ getAction AppRunCode handle)
-
-  aboutAction <- Gio.simpleActionNew "show-about" Nothing
-  void $ Gio.onSimpleActionActivate aboutAction (const $ getAction AppShowAbout handle)
-
-  mapM_  (Gio.actionMapAddAction app)
-    [ quitAction
-    , runCodeAction
-    , aboutAction
-    ]
+  forM_ actions $ Gio.actionMapAddAction app
 
 toActionName :: AppAction -> Text
 toActionName AppQuit      = "app.quit"
@@ -68,7 +69,17 @@ getAction AppQuit _ = do
   Just app <- Gio.applicationGetDefault
   Gio.applicationQuit app
 
-getAction AppNewFile _appState = undefined
+getAction AppNewFile handle = do
+  Just activeWindow <- Gtk.applicationGetActiveWindow (handle ^. appApplication)
+  hasUnsaved <- App.hasUnsavedChanges handle
+  if not hasUnsaved then do App.reset handle
+  else do
+    MessageDialog.ofConfirmation
+      activeWindow
+      "There are unsaved changes, create a new file?"
+      (App.reset handle)
+      (pure ())
+
 getAction AppOpenFile _appState = undefined
 getAction AppSaveFile _appState = undefined
 

@@ -34,7 +34,7 @@ runApplication app = do
 
   layout <- Gtk.boxNew Gtk.OrientationVertical 10
   textEditor <- TextEditor.empty
-  appState <- App.new textEditor
+  appState <- App.new app textEditor
 
   toolbar <- ToolBar.new appState
   menuBar <- MenuBar.new
@@ -47,7 +47,5 @@ runApplication app = do
 
   Gtk.windowSetChild win $ Just layout
 
-  Gtk.widgetShow textEditor
   void $ Gtk.widgetGrabFocus textEditor
-
   Gtk.widgetShow win
