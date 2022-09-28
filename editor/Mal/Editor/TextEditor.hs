@@ -4,6 +4,7 @@ module Mal.Editor.TextEditor
   , empty
   , new
   , getContents
+  , setContents
 )
 where
 
@@ -27,11 +28,17 @@ empty = do
 -- | Create a new TextEditor with the given contents.
 new :: Text -> IO TextEditor
 new contents = do
-  textView <- empty
-  textBuffer <- Gtk.textViewGetBuffer textView
-  Gtk.textBufferSetText textBuffer contents $ fromIntegral (T.length contents)
-  pure textView
+  textEditor <- empty
+  setContents textEditor contents
+  pure textEditor
 
+-- | Set the contents of the provided @TextEditor@.
+setContents :: TextEditor -> Text -> IO ()
+setContents textEditor contents = do
+  textBuffer <- Gtk.textViewGetBuffer textEditor
+  Gtk.textBufferSetText textBuffer contents $ fromIntegral (T.length contents)
+
+-- | Get the text contents of the provided @TextEditor@.
 getContents :: TextEditor -> IO Text
 getContents textView = do
   textBuffer <- Gtk.textViewGetBuffer textView

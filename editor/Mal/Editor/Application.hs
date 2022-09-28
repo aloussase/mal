@@ -4,17 +4,16 @@ module Mal.Editor.Application
 )
 where
 
-import qualified Mal.Editor.Actions    as Actions
-import qualified Mal.Editor.MenuBar    as MenuBar
-import qualified Mal.Editor.TextEditor as TextEditor
-import qualified Mal.Editor.Toolbar    as ToolBar
-import           Mal.Editor.Types
+import qualified Mal.Editor.Actions            as Actions
+import qualified Mal.Editor.Application.Handle as App
+import qualified Mal.Editor.MenuBar            as MenuBar
+import qualified Mal.Editor.TextEditor         as TextEditor
+import qualified Mal.Editor.Toolbar            as ToolBar
 
-import           Control.Lens
-import           Control.Monad         (void)
-import           Data.Text             (Text)
-import qualified GI.Gio                as Gio
-import qualified GI.Gtk                as Gtk
+import           Control.Monad                 (void)
+import           Data.Text                     (Text)
+import qualified GI.Gio                        as Gio
+import qualified GI.Gtk                        as Gtk
 
 appId :: Text
 appId = "io.github.aloussase.mal"
@@ -34,7 +33,8 @@ runApplication app = do
   Gtk.setWindowDefaultHeight win 600
 
   layout <- Gtk.boxNew Gtk.OrientationVertical 10
-  appState <- appStateNew <$> TextEditor.empty
+  textEditor <- TextEditor.empty
+  appState <- App.new textEditor
 
   toolbar <- ToolBar.new appState
   menuBar <- MenuBar.new
@@ -43,11 +43,11 @@ runApplication app = do
 
   Gtk.boxAppend layout menuBar
   Gtk.boxAppend layout toolbar
-  Gtk.boxAppend layout $ appState^.appTextEditor
+  Gtk.boxAppend layout textEditor
 
   Gtk.windowSetChild win $ Just layout
 
-  Gtk.widgetShow $ appState^.appTextEditor
-  void $ Gtk.widgetGrabFocus $ appState^.appTextEditor
+  Gtk.widgetShow textEditor
+  void $ Gtk.widgetGrabFocus textEditor
 
   Gtk.widgetShow win

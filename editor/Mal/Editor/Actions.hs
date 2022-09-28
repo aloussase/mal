@@ -9,26 +9,33 @@ where
 
 import qualified Mal
 
-import qualified Mal.Editor.TextEditor as TextEditor
-import           Mal.Editor.Types
+import           Mal.Editor.Application.Handle (appTextEditor)
+import qualified Mal.Editor.Application.Handle as App
+import qualified Mal.Editor.TextEditor         as TextEditor
 
 import           Control.Lens
-import           Control.Monad         (void)
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified GI.Gio                as Gio
+import           Control.Monad                 (void)
+import           Data.Text                     (Text)
+import qualified Data.Text                     as T
+import qualified GI.Gio                        as Gio
 
-data AppAction = AppQuit | AppRunCode
+data AppAction =
+  AppQuit
+  | AppRunCode
+  | AppNewFile
+  | AppOpenFile
+  | AppSaveFile
+  | AppShowAbout
 
-createActions :: ApplicationState -> IO ()
-createActions appState = do
+createActions :: App.Handle -> IO ()
+createActions handle = do
   Just app <- Gio.applicationGetDefault
 
   quitAction <- Gio.simpleActionNew "quit" Nothing
-  void $ Gio.onSimpleActionActivate quitAction (const $ getAction AppQuit appState)
+  void $ Gio.onSimpleActionActivate quitAction (const $ getAction AppQuit handle)
 
   runCodeAction <- Gio.simpleActionNew "run-code" Nothing
-  void $ Gio.onSimpleActionActivate runCodeAction (const $ getAction AppRunCode appState)
+  void $ Gio.onSimpleActionActivate runCodeAction (const $ getAction AppRunCode handle)
 
   mapM_  (Gio.actionMapAddAction app)
     [ quitAction
@@ -36,18 +43,28 @@ createActions appState = do
     ]
 
 toActionName :: AppAction -> Text
-toActionName AppQuit    = "app.quit"
-toActionName AppRunCode = "app.run-code"
+toActionName AppQuit      = "app.quit"
+toActionName AppRunCode   = "app.run-code"
+toActionName AppNewFile   = "app.new-file"
+toActionName AppOpenFile  = "app.open-file"
+toActionName AppSaveFile  = "app.save-file"
+toActionName AppShowAbout = "app.show-about"
 
 instance Show AppAction where show = T.unpack . toActionName
 
-getAction :: AppAction -> ApplicationState -> IO ()
-getAction AppRunCode appState = do
-  program <- TextEditor.getContents $ appState^.appTextEditor
+getAction :: AppAction -> App.Handle -> IO ()
+
+getAction AppRunCode handle = do
+  program <- TextEditor.getContents $ handle ^. appTextEditor
   result <- Mal.runOnce Nothing program
   print result
+
 getAction AppQuit _ = do
   Just app <- Gio.applicationGetDefault
   Gio.applicationQuit app
 
+getAction AppNewFile _appState = undefined
+getAction AppOpenFile _appState = undefined
+getAction AppSaveFile _appState = undefined
+getAction AppShowAbout _appState = undefined
 
