@@ -51,6 +51,7 @@ executable mal-editor
     other-modules:    Mal.Editor.State
                     , Mal.Editor.Gui.TextEditor
                     , Mal.Editor.Gui.Toolbar
+                    , Mal.Editor.Gui.MenuBar
     ghc-options:      -Wall -Wunused-packages
     build-depends:
           mal
