@@ -48,10 +48,12 @@ executable mal
 
 executable mal-editor
     main-is:          Main.hs
-    other-modules:    Mal.Editor.State
-                    , Mal.Editor.Gui.TextEditor
-                    , Mal.Editor.Gui.Toolbar
-                    , Mal.Editor.Gui.MenuBar
+    other-modules:    Mal.Editor.Application
+                    , Mal.Editor.Actions
+                    , Mal.Editor.MenuBar
+                    , Mal.Editor.TextEditor
+                    , Mal.Editor.Toolbar
+                    , Mal.Editor.Types
     ghc-options:      -Wall -Wunused-packages
     build-depends:
           mal
@@ -61,9 +63,10 @@ executable mal-editor
         , haskell-gi-base               >= 0.26.1 && < 0.27
         , haskell-gi-overloading        ==0.0.*
         , text
+        , lens
     hs-source-dirs:   editor
     default-language: Haskell2010
-    default-extensions: OverloadedStrings
+    default-extensions: OverloadedStrings, TemplateHaskell, DataKinds
 
 test-suite mal-test
     default-language: Haskell2010

@@ -37,6 +37,19 @@ This is an implementation of the [Mal](https://github.com/kanaka/mal) programmin
 
 For a more complex examples (such a command line todo app), see the `examples` directory.
 
+## Dependencies
+
+A number of libraries are needed to build the project. On Debian/Ubuntu
+you can install them with the following command:
+
+```shell
+sudo apt-get install libgirepository1.0-dev \
+    libwebkit2gtk-4.0-dev \
+    libgtksourceview-3.0-dev \
+    libreadline-dev \
+    libgtk-4-dev
+```
+
 ## Install
 
 This requires a working installation of Cabal. The easiest way to install it is

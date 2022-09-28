@@ -1,4 +1,4 @@
-module Mal.Editor.Gui.TextEditor
+module Mal.Editor.TextEditor
 (
     TextEditor
   , empty
@@ -16,7 +16,7 @@ import qualified GI.Gtk    as Gtk
 type TextEditor = Gtk.TextView
 
 -- | Create a new empty TextEditor.
-empty :: IO Gtk.TextView
+empty :: IO TextEditor
 empty = do
   textView <- Gtk.textViewNew
   Gtk.textViewSetAcceptsTab textView True
@@ -25,14 +25,14 @@ empty = do
   pure textView
 
 -- | Create a new TextEditor with the given contents.
-new :: Text -> IO Gtk.TextView
+new :: Text -> IO TextEditor
 new contents = do
   textView <- empty
   textBuffer <- Gtk.textViewGetBuffer textView
   Gtk.textBufferSetText textBuffer contents $ fromIntegral (T.length contents)
   pure textView
 
-getContents :: Gtk.TextView -> IO Text
+getContents :: TextEditor -> IO Text
 getContents textView = do
   textBuffer <- Gtk.textViewGetBuffer textView
   start <- Gtk.textBufferGetStartIter textBuffer

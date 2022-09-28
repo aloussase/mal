@@ -1,12 +1,13 @@
-module Mal.Editor.Gui.MenuBar
+module Mal.Editor.MenuBar
 (
   new
 )
 where
 
-import qualified GI.Gio as Gio
-import qualified GI.Gtk as Gtk
+import           Mal.Editor.Actions
 
+import qualified GI.Gio             as Gio
+import qualified GI.Gtk             as Gtk
 
 type MenuBar = Gtk.PopoverMenuBar
 
@@ -43,5 +44,5 @@ createFileMenu = do
   Gio.menuAppend fileMenu (Just "Open File") Nothing
   Gio.menuAppend fileMenu (Just "New file") Nothing
   Gio.menuAppend fileMenu (Just "Save") Nothing
-  Gio.menuAppend fileMenu (Just "Exit") (Just "app.quit")
+  Gio.menuAppend fileMenu (Just "Exit") (Just $ toActionName AppQuit)
   pure fileMenu
