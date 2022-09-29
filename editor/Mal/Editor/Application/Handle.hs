@@ -82,16 +82,15 @@ hasUnsavedChanges handle = do
     Just fileHash' -> pure $ fileHash' /= editorHash
     Nothing        -> pure $ not . null $ editorHash
 
-
 notify :: Handle -> Text -> IO ()
 notify handle message = do
   Gtk.labelSetText (handle^.appInfoLabel) message
-  _ <- forkIO $ do
-        threadDelay (10^6)
-        void $ GLib.idleAdd GLib.PRIORITY_HIGH_IDLE $ do
-                Gtk.widgetHide (handle^.appInfoBar)
-                pure False
   Gtk.widgetShow $ handle^.appInfoBar
+
+  void $ forkIO $ do
+    threadDelay $ 10^6
+    void $ GLib.idleAdd GLib.PRIORITY_HIGH_IDLE $
+            Gtk.widgetHide (handle^.appInfoBar) >> pure False
 
 hashString :: String -> String
 hashString = show @(Digest SHA1) . hash . TE.encodeUtf8 . T.pack
