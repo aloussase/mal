@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Mal.Editor.Actions
 (
     AppAction (..)
@@ -16,6 +17,7 @@ import qualified Mal.Editor.TextEditor         as TextEditor
 
 import           Control.Lens
 import           Control.Monad                 (forM_, void)
+import           Data.GI.Base
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import qualified GI.Gio                        as Gio
@@ -44,6 +46,7 @@ createActions handle = do
                       , createAction handle "run-code" AppRunCode
                       , createAction handle "show-about" AppShowAbout
                       , createAction handle "new-file" AppNewFile
+                      , createAction handle "open-file" AppOpenFile
                       ]
 
   forM_ actions $ Gio.actionMapAddAction app
@@ -80,17 +83,39 @@ getAction AppNewFile handle = do
       (App.reset handle)
       (pure ())
 
-getAction AppOpenFile _appState = undefined
+getAction AppOpenFile handle = do
+  activeWindow <- Gtk.applicationGetActiveWindow (handle^.appApplication)
+
+  fileChooserDialog :: Gtk.FileChooserDialog <- new Gtk.FileChooserDialog []
+
+  Gtk.windowSetTitle fileChooserDialog $ Just "Open File"
+  Gtk.fileChooserSetAction fileChooserDialog Gtk.FileChooserActionOpen
+
+  _ <- Gtk.dialogAddButton fileChooserDialog "Open" $ fromIntegral (fromEnum Gtk.ResponseTypeOk)
+  _ <- Gtk.dialogAddButton fileChooserDialog "Cancel" $ fromIntegral (fromEnum Gtk.ResponseTypeCancel)
+
+  void $ Gtk.onDialogResponse fileChooserDialog $ \responseId -> do
+    case toEnum $ fromIntegral responseId of
+      Gtk.ResponseTypeOk -> do
+          -- TODO: Should handle these errors.
+          Just file <- Gtk.fileChooserGetFile fileChooserDialog
+          Just fileName <- Gio.fileGetPath file
+          App.setFile handle fileName
+      _ -> pure ()
+    Gtk.windowClose fileChooserDialog
+
+  Gtk.windowSetTransientFor fileChooserDialog activeWindow
+  Gtk.widgetShow fileChooserDialog
+
+
 getAction AppSaveFile _appState = undefined
 
 getAction AppShowAbout _ = do
   aboutDialog <- Gtk.aboutDialogNew
-
   Gtk.aboutDialogSetAuthors aboutDialog ["Alexander Goussas"]
   Gtk.aboutDialogSetComments aboutDialog
     $ Just "Text editor for the Mal programming language."
   Gtk.aboutDialogSetCopyright aboutDialog $ Just "Alexander Goussas 2022"
   Gtk.aboutDialogSetProgramName aboutDialog $ Just "Mal Editor"
   Gtk.aboutDialogSetWebsite aboutDialog $ Just "https://github.com/aloussase/mal.git"
-
   Gtk.widgetShow aboutDialog

@@ -33,8 +33,12 @@ runApplication app = do
   Gtk.setWindowDefaultHeight win 600
 
   layout <- Gtk.boxNew Gtk.OrientationVertical 10
+
   textEditor <- TextEditor.empty
   appState <- App.new app textEditor
+
+  scrolledWindow <- Gtk.scrolledWindowNew
+  Gtk.scrolledWindowSetChild scrolledWindow $ Just textEditor
 
   toolbar <- ToolBar.new appState
   menuBar <- MenuBar.new
@@ -43,7 +47,7 @@ runApplication app = do
 
   Gtk.boxAppend layout menuBar
   Gtk.boxAppend layout toolbar
-  Gtk.boxAppend layout textEditor
+  Gtk.boxAppend layout scrolledWindow
 
   Gtk.windowSetChild win $ Just layout
 

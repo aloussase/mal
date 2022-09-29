@@ -69,7 +69,7 @@ executable mal-editor
         , cryptonite
     hs-source-dirs:   editor
     default-language: Haskell2010
-    default-extensions: OverloadedStrings, TemplateHaskell, DataKinds
+    default-extensions: OverloadedStrings, TemplateHaskell, DataKinds, OverloadedLabels
 
 test-suite mal-test
     default-language: Haskell2010

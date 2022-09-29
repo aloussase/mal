@@ -1,9 +1,10 @@
+{-# LANGUAGE TypeApplications #-}
 module Mal.Editor.Application.Handle
 (
     Handle
   , new
   , reset
-  , setFileName
+  , setFile
   , hasUnsavedChanges
   , appFileName
   , appTextEditor
@@ -20,6 +21,7 @@ import           Data.IORef
 import qualified Data.Text             as T
 import qualified Data.Text.Encoding    as TE
 import qualified GI.Gtk                as Gtk
+import           System.IO             (readFile')
 
 data Handle =
   Handle
@@ -45,18 +47,23 @@ reset handle = do
   writeIORef (handle ^. appFileHash) Nothing
   TextEditor.setContents (handle ^. appTextEditor) ""
 
--- | Set the application's file name
-setFileName :: Handle -> FilePath -> IO ()
-setFileName appState = writeIORef (appState^.appFileName) . Just
+-- | Set the application's current file.
+setFile :: Handle -> FilePath -> IO ()
+setFile handle fileName = do
+  writeIORef (handle^.appFileName) $ Just fileName
+  fileContents <- readFile' fileName
+  TextEditor.setContents (handle^.appTextEditor) $ T.pack fileContents
+  writeIORef (handle^.appFileHash) $ Just (hashString fileContents)
 
 -- | Returns whether the editor has any unsaved changes.
 hasUnsavedChanges :: Handle -> IO Bool
 hasUnsavedChanges handle = do
   fileHash <- readIORef (handle ^. appFileHash)
   editorContents <- TextEditor.getContents (handle ^. appTextEditor)
-
   pure $ case fileHash of
-    Just fileHash' -> fileHash' == show (hash $ TE.encodeUtf8 editorContents :: Digest SHA1)
-    Nothing -> not (T.null editorContents)
+    Just fileHash' -> fileHash' == hashString (T.unpack editorContents)
+    Nothing        -> not (T.null editorContents)
 
+hashString :: String -> String
+hashString = show @(Digest SHA1) . hash . TE.encodeUtf8 . T.pack
 
