@@ -33,5 +33,6 @@ createToolBarButton :: Text -> IO ToolBarButton
 createToolBarButton iconName = do
   button <- Gtk.buttonNewFromIconName (Just iconName)
   Gtk.widgetSetMarginTop button 5
+  Gtk.widgetSetMarginBottom button 5
   Gtk.widgetSetMarginStart button 5
   pure button

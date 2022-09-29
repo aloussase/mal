@@ -61,6 +61,7 @@ executable mal-editor
         , base                          ^>=4.15.1
         , gi-gtk                        >=4.0.5 && <=4.0.6
         , gi-gio
+        , gi-glib
         , haskell-gi-base               >= 0.26.1 && < 0.27
         , haskell-gi-overloading        ==0.0.*
         , text

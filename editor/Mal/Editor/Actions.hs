@@ -20,6 +20,7 @@ import           Control.Monad                 (forM_, void)
 import           Data.GI.Base
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
+import qualified Data.Text.IO                  as TIO
 import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 
@@ -47,6 +48,7 @@ createActions handle = do
                       , createAction handle "show-about" AppShowAbout
                       , createAction handle "new-file" AppNewFile
                       , createAction handle "open-file" AppOpenFile
+                      , createAction handle "save-file" AppSaveFile
                       ]
 
   forM_ actions $ Gio.actionMapAddAction app
@@ -75,8 +77,8 @@ getAction AppQuit _ = do
 getAction AppNewFile handle = do
   Just activeWindow <- Gtk.applicationGetActiveWindow (handle ^. appApplication)
   hasUnsaved <- App.hasUnsavedChanges handle
-  if not hasUnsaved then do App.reset handle
-  else do
+  if not hasUnsaved then App.reset handle
+  else
     MessageDialog.ofConfirmation
       activeWindow
       "There are unsaved changes, create a new file?"
@@ -107,8 +109,13 @@ getAction AppOpenFile handle = do
   Gtk.windowSetTransientFor fileChooserDialog activeWindow
   Gtk.widgetShow fileChooserDialog
 
-
-getAction AppSaveFile _appState = undefined
+getAction AppSaveFile handle = do
+  fileName <- App.getFileName handle
+  case fileName of
+    Just fileName' -> do
+      TextEditor.getContents (handle^.appTextEditor) >>= TIO.writeFile fileName'
+      App.notify handle "File saved"
+    _ -> print ("saving filename..." :: String)
 
 getAction AppShowAbout _ = do
   aboutDialog <- Gtk.aboutDialogNew

@@ -32,10 +32,12 @@ runApplication app = do
   Gtk.setWindowDefaultWidth win 800
   Gtk.setWindowDefaultHeight win 600
 
-  layout <- Gtk.boxNew Gtk.OrientationVertical 10
+  layout <- Gtk.boxNew Gtk.OrientationVertical 0
 
   textEditor <- TextEditor.empty
-  appState <- App.new app textEditor
+  (infoBar, infoLabel) <- createInfoBar
+
+  appState <- App.new app textEditor infoBar infoLabel
 
   scrolledWindow <- Gtk.scrolledWindowNew
   Gtk.scrolledWindowSetChild scrolledWindow $ Just textEditor
@@ -47,9 +49,24 @@ runApplication app = do
 
   Gtk.boxAppend layout menuBar
   Gtk.boxAppend layout toolbar
+  Gtk.boxAppend layout infoBar
   Gtk.boxAppend layout scrolledWindow
 
   Gtk.windowSetChild win $ Just layout
 
   void $ Gtk.widgetGrabFocus textEditor
   Gtk.widgetShow win
+
+createInfoBar :: IO (Gtk.InfoBar, Gtk.Label)
+createInfoBar = do
+  infoBar <- Gtk.infoBarNew
+  Gtk.infoBarSetMessageType infoBar Gtk.MessageTypeInfo
+  Gtk.widgetSetValign infoBar Gtk.AlignCenter
+  Gtk.widgetHide infoBar
+
+  infoLabel <- Gtk.labelNew Nothing
+  Gtk.infoBarAddChild infoBar infoLabel
+
+  pure (infoBar, infoLabel)
+
+
