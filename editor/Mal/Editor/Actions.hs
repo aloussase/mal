@@ -110,18 +110,20 @@ getAction AppOpenFile handle = do
   Gtk.widgetShow fileChooserDialog
 
 getAction AppSaveFile handle = do
-  fileName <- App.getFileName handle
-  case fileName of
-    Just fileName' -> do
-      TextEditor.getContents (handle^.appTextEditor) >>= TIO.writeFile fileName'
+  App.getFileName handle >>= maybe createAndSaveFile saveOpenFile
+  where
+    createAndSaveFile = do
+      -- TODO
+      print ("saving filename..." :: String)
+
+    saveOpenFile fileName = do
+      TextEditor.getContents (handle^.appTextEditor) >>= TIO.writeFile fileName
       App.notify handle "File saved"
-    _ -> print ("saving filename..." :: String)
 
 getAction AppShowAbout _ = do
   aboutDialog <- Gtk.aboutDialogNew
   Gtk.aboutDialogSetAuthors aboutDialog ["Alexander Goussas"]
-  Gtk.aboutDialogSetComments aboutDialog
-    $ Just "Text editor for the Mal programming language."
+  Gtk.aboutDialogSetComments aboutDialog $ Just "Text editor for the Mal programming language."
   Gtk.aboutDialogSetCopyright aboutDialog $ Just "Alexander Goussas 2022"
   Gtk.aboutDialogSetProgramName aboutDialog $ Just "Mal Editor"
   Gtk.aboutDialogSetWebsite aboutDialog $ Just "https://github.com/aloussase/mal.git"
