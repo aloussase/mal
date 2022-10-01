@@ -40,3 +40,4 @@
 (fun partial (f & args)
   (fn* (& more-args)
     (apply f (concat args more-args))))
+

@@ -2,41 +2,36 @@
 module Mal.Editor.Application.Handle
 (
     Handle
-  , new
-  , reset
-  , setFile
-  , getFileName
-  , notify
-  , hasUnsavedChanges
-  , appFileName
-  , appTextEditor
   , appApplication
+  , appExecutionOutput
+  , appFileManager
+  , appTextEditor
+  , new
+  , notify
+  , reset
+  , openFile
 )
 where
 
-import           Mal.Editor.TextEditor (TextEditor)
-import qualified Mal.Editor.TextEditor as TextEditor
+import qualified Mal.Editor.FileManager as FileManager
+import           Mal.Editor.TextEditor  (TextEditor)
+import qualified Mal.Editor.TextEditor  as TextEditor
 
-import           Control.Concurrent    (forkIO, threadDelay)
+import           Control.Concurrent     (forkIO, threadDelay)
 import           Control.Lens
-import           Control.Monad         (void)
-import           Crypto.Hash
-import           Data.IORef
-import           Data.Text             (Text)
-import qualified Data.Text             as T
-import qualified Data.Text.Encoding    as TE
-import qualified GI.GLib               as GLib
-import qualified GI.Gtk                as Gtk
-import           System.IO             (readFile')
+import           Control.Monad          (void)
+import           Data.Text              (Text)
+import qualified GI.GLib                as GLib
+import qualified GI.Gtk                 as Gtk
 
 data Handle =
   Handle
-  { _appApplication :: Gtk.Application
-  , _appFileName    :: IORef (Maybe FilePath)      -- ^ The currently open file.
-  , _appTextEditor  :: TextEditor                  -- ^ The text editor.
-  , _appFileHash    :: IORef (Maybe String)        -- ^ Hash of the last saved file.
-  , _appInfoBar     :: Gtk.InfoBar                 -- ^ For notifications.
-  , _appInfoLabel   :: Gtk.Label                   -- ^ The inner label of the info bar.
+  { _appApplication     :: Gtk.Application
+  , _appFileManager     :: FileManager.Handle
+  , _appTextEditor      :: TextEditor                  -- ^ The text editor.
+  , _appInfoBar         :: Gtk.InfoBar                 -- ^ For notifications.
+  , _appInfoLabel       :: Gtk.Label                   -- ^ The inner label of the info bar.
+  , _appExecutionOutput :: TextEditor              -- ^ The run output text editor.
   }
 
 makeLenses ''Handle
@@ -47,40 +42,31 @@ new ::
   -> TextEditor
   -> Gtk.InfoBar
   -> Gtk.Label
+  -> TextEditor
   -> IO Handle
-new application textEditor infoBar infoLabel = do
-  -- Start with no file.
-  fileName <- newIORef Nothing
-  fileHash <- newIORef Nothing
-  pure $ Handle application fileName textEditor fileHash infoBar infoLabel
+new application textEditor infoBar infoLabel executionOutput = do
+  fileManager <- FileManager.new Nothing
+  pure $ Handle
+    { _appApplication = application
+    , _appTextEditor = textEditor
+    , _appInfoBar = infoBar
+    , _appInfoLabel = infoLabel
+    , _appExecutionOutput = executionOutput
+    , _appFileManager = fileManager
+    }
 
 -- | Reset the application to a blank slate.
 reset :: Handle -> IO ()
 reset handle = do
-  writeIORef (handle ^. appFileName) Nothing
-  writeIORef (handle ^. appFileHash) Nothing
-  TextEditor.setContents (handle ^. appTextEditor) ""
-
--- | Get the application's current file name.
-getFileName :: Handle -> IO (Maybe FilePath)
-getFileName = readIORef . view appFileName
+  FileManager.reset (handle^.appFileManager)
+  TextEditor.setContents (handle^.appTextEditor) ""
 
 -- | Set the application's current file.
-setFile :: Handle -> FilePath -> IO ()
-setFile handle fileName = do
-  writeIORef (handle^.appFileName) $ Just fileName
-  readFile' fileName >>= \fileContents -> do
-    writeIORef (handle^.appFileHash) $ Just (hashString fileContents)
-    TextEditor.setContents (handle^.appTextEditor) $ T.pack fileContents
-
--- | Returns whether the editor has any unsaved changes.
-hasUnsavedChanges :: Handle -> IO Bool
-hasUnsavedChanges handle = do
-  fileHash <- readIORef (handle^.appFileHash)
-  editorHash <- hashString . T.unpack <$> TextEditor.getContents (handle^.appTextEditor)
-  case fileHash of
-    Just fileHash' -> pure $ fileHash' /= editorHash
-    Nothing        -> pure $ not . null $ editorHash
+openFile :: Handle -> FilePath -> IO ()
+openFile handle filename = do
+  FileManager.openFile (handle^.appFileManager) filename
+  fileContents <- FileManager.getFileContents (handle^.appFileManager)
+  TextEditor.setContents (handle^.appTextEditor) fileContents
 
 notify :: Handle -> Text -> IO ()
 notify handle message = do
@@ -91,7 +77,3 @@ notify handle message = do
     threadDelay $ 10^6
     void $ GLib.idleAdd GLib.PRIORITY_HIGH_IDLE $
             Gtk.widgetHide (handle^.appInfoBar) >> pure False
-
-hashString :: String -> String
-hashString = show @(Digest SHA1) . hash . TE.encodeUtf8 . T.pack
-

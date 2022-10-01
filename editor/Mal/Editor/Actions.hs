@@ -8,19 +8,21 @@ module Mal.Editor.Actions
 )
 where
 
-import qualified Mal
-
-import           Mal.Editor.Application.Handle (appApplication, appTextEditor)
+import           Mal.Editor.Application.Handle (appApplication,
+                                                appExecutionOutput,
+                                                appFileManager, appTextEditor)
 import qualified Mal.Editor.Application.Handle as App
+import qualified Mal.Editor.FileManager        as FileManager
 import qualified Mal.Editor.MessageDialog      as MessageDialog
 import qualified Mal.Editor.TextEditor         as TextEditor
+
+import qualified Mal
 
 import           Control.Lens
 import           Control.Monad                 (forM_, void)
 import           Data.GI.Base
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
-import qualified Data.Text.IO                  as TIO
 import qualified GI.Gio                        as Gio
 import qualified GI.Gtk                        as Gtk
 
@@ -32,6 +34,7 @@ data AppAction =
   | AppSaveFile
   | AppShowAbout
 
+-- TODO: Add SaveAs action
 
 createAction :: App.Handle -> Text -> AppAction -> IO Gio.SimpleAction
 createAction handle actionName actionType = do
@@ -66,18 +69,24 @@ instance Show AppAction where show = T.unpack . toActionName
 getAction :: AppAction -> App.Handle -> IO ()
 
 getAction AppRunCode handle = do
-  program <- TextEditor.getContents $ handle ^. appTextEditor
-  result <- Mal.runOnce Nothing program
-  print result
+  program <- TextEditor.getContents $ handle^.appTextEditor
+  fileName <- FileManager.getFileName (handle^.appFileManager)
+  result <- Mal.runOnce (Just $ Mal.MkMalFilename fileName) program
+  TextEditor.setContents (handle^.appExecutionOutput) result
 
 getAction AppQuit _ = do
   Just app <- Gio.applicationGetDefault
   Gio.applicationQuit app
 
 getAction AppNewFile handle = do
-  Just activeWindow <- Gtk.applicationGetActiveWindow (handle ^. appApplication)
-  hasUnsaved <- App.hasUnsavedChanges handle
-  if not hasUnsaved then App.reset handle
+  Just activeWindow <- Gtk.applicationGetActiveWindow (handle^.appApplication)
+
+  currentTextEditorContents <- TextEditor.getContents (handle^.appTextEditor)
+
+  FileManager.setFileContents (handle^.appFileManager) currentTextEditorContents
+  hasFileChanged <- FileManager.hasFileChanged (handle^.appFileManager)
+
+  if not hasFileChanged then App.reset handle
   else
     MessageDialog.ofConfirmation
       activeWindow
@@ -102,7 +111,7 @@ getAction AppOpenFile handle = do
           -- TODO: Should handle these errors.
           Just file <- Gtk.fileChooserGetFile fileChooserDialog
           Just fileName <- Gio.fileGetPath file
-          App.setFile handle fileName
+          App.openFile handle fileName
       _ -> pure ()
     Gtk.windowClose fileChooserDialog
 
@@ -110,15 +119,10 @@ getAction AppOpenFile handle = do
   Gtk.widgetShow fileChooserDialog
 
 getAction AppSaveFile handle = do
-  App.getFileName handle >>= maybe createAndSaveFile saveOpenFile
-  where
-    createAndSaveFile = do
-      -- TODO
-      print ("saving filename..." :: String)
-
-    saveOpenFile fileName = do
-      TextEditor.getContents (handle^.appTextEditor) >>= TIO.writeFile fileName
-      App.notify handle "File saved"
+  currentTextEditorContents <- TextEditor.getContents (handle^.appTextEditor)
+  FileManager.setFileContents (handle^.appFileManager) currentTextEditorContents
+  FileManager.save $ handle^.appFileManager
+  App.notify handle "File saved"
 
 getAction AppShowAbout _ = do
   aboutDialog <- Gtk.aboutDialogNew

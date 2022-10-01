@@ -6,6 +6,7 @@ where
 
 import qualified Mal.Editor.Actions            as Actions
 import qualified Mal.Editor.Application.Handle as App
+import qualified Mal.Editor.ExecutionWindow    as ExecutionWindow
 import qualified Mal.Editor.MenuBar            as MenuBar
 import qualified Mal.Editor.TextEditor         as TextEditor
 import qualified Mal.Editor.Toolbar            as ToolBar
@@ -28,34 +29,44 @@ run =  do
 runApplication :: Gtk.Application -> IO ()
 runApplication app = do
   win <- Gtk.applicationWindowNew app
+
   Gtk.setWindowTitle win "Mal Editor"
   Gtk.setWindowDefaultWidth win 800
   Gtk.setWindowDefaultHeight win 600
 
-  layout <- Gtk.boxNew Gtk.OrientationVertical 0
-
-  textEditor <- TextEditor.empty
   (infoBar, infoLabel) <- createInfoBar
+  (textEditor, panedWidget, executionOutputTextEditor) <- createMainArea
 
-  appState <- App.new app textEditor infoBar infoLabel
+  appState <- App.new app textEditor infoBar infoLabel executionOutputTextEditor
+  Actions.createActions appState
 
-  scrolledWindow <- Gtk.scrolledWindowNew
-  Gtk.scrolledWindowSetChild scrolledWindow $ Just textEditor
-
-  toolbar <- ToolBar.new appState
+  -- Create the toolbars
+  toolbar <- ToolBar.new
   menuBar <- MenuBar.new
 
-  Actions.createActions  appState
+  -- Create the main layout
+  mainLayout <- Gtk.boxNew Gtk.OrientationVertical 0
 
-  Gtk.boxAppend layout menuBar
-  Gtk.boxAppend layout toolbar
-  Gtk.boxAppend layout infoBar
-  Gtk.boxAppend layout scrolledWindow
+  Gtk.boxAppend mainLayout menuBar
+  Gtk.boxAppend mainLayout toolbar
+  Gtk.boxAppend mainLayout infoBar
+  Gtk.boxAppend mainLayout panedWidget
 
-  Gtk.windowSetChild win $ Just layout
-
+  Gtk.windowSetChild win $ Just mainLayout
   void $ Gtk.widgetGrabFocus textEditor
+
   Gtk.widgetShow win
+
+createMainArea :: IO (Gtk.TextView, Gtk.Paned, Gtk.TextView)
+createMainArea = do
+  textEditor <- TextEditor.empty
+  editorWindow <- Gtk.scrolledWindowNew
+  Gtk.scrolledWindowSetChild editorWindow $ Just textEditor
+  (executionOutputTextEditor, executionWindow) <- ExecutionWindow.new
+  panedWidget <- Gtk.panedNew Gtk.OrientationVertical
+  Gtk.panedSetStartChild panedWidget $ Just editorWindow
+  Gtk.panedSetEndChild panedWidget $ Just executionWindow
+  pure (textEditor, panedWidget, executionOutputTextEditor)
 
 createInfoBar :: IO (Gtk.InfoBar, Gtk.Label)
 createInfoBar = do
@@ -63,10 +74,8 @@ createInfoBar = do
   Gtk.infoBarSetMessageType infoBar Gtk.MessageTypeInfo
   Gtk.widgetSetValign infoBar Gtk.AlignCenter
   Gtk.widgetHide infoBar
-
   infoLabel <- Gtk.labelNew Nothing
   Gtk.infoBarAddChild infoBar infoLabel
-
   pure (infoBar, infoLabel)
 
 

@@ -55,6 +55,8 @@ executable mal-editor
                     , Mal.Editor.TextEditor
                     , Mal.Editor.Toolbar
                     , Mal.Editor.MessageDialog
+                    , Mal.Editor.ExecutionWindow
+                    , Mal.Editor.FileManager
     ghc-options:      -Wall -Wunused-packages -threaded
     build-depends:
           mal

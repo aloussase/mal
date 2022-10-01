@@ -7,7 +7,6 @@ module Mal.Editor.Toolbar
 where
 
 import           Mal.Editor.Actions
-import qualified Mal.Editor.Application.Handle as App
 
 import           Data.Text                     (Text)
 import qualified GI.Gtk                        as Gtk
@@ -15,8 +14,8 @@ import qualified GI.Gtk                        as Gtk
 type ToolBar = Gtk.Box
 type ToolBarButton = Gtk.Button
 
-new :: App.Handle -> IO ToolBar
-new _ = do
+new :: IO ToolBar
+new = do
   toolbar <- Gtk.boxNew Gtk.OrientationHorizontal 0
 
   Gtk.widgetSetValign toolbar Gtk.AlignCenter
