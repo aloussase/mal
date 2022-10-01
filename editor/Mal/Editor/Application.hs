@@ -11,6 +11,7 @@ import           Mal.Editor.InfoBar             (infoBarBar)
 import qualified Mal.Editor.InfoBar             as InfoBar
 import qualified Mal.Editor.MenuBar             as MenuBar
 import qualified Mal.Editor.Notification.Handle as Notification
+import qualified Mal.Editor.Statusbar           as Statusbar
 import qualified Mal.Editor.TextEditor          as TextEditor
 import qualified Mal.Editor.Toolbar             as ToolBar
 
@@ -58,6 +59,7 @@ runApplication app = do
   Gtk.boxAppend mainLayout toolbar
   Gtk.boxAppend mainLayout (infoBar^.infoBarBar)
   Gtk.boxAppend mainLayout panedWidget
+  Gtk.boxAppend mainLayout $ Statusbar.getBar (appState^.App.appStatusbar)
 
   Gtk.windowSetChild win $ Just mainLayout
   void $ Gtk.widgetGrabFocus textEditor

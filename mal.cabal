@@ -60,6 +60,7 @@ executable mal-editor
                     , Mal.Editor.Notification.Renderer
                     , Mal.Editor.TextEditor
                     , Mal.Editor.Toolbar
+                    , Mal.Editor.Statusbar
     ghc-options:      -Wall -Wunused-packages -threaded
     build-depends:
           mal

@@ -36,39 +36,47 @@ empty = do
 -- TODO: Make gutter line numbers align with editor lines.
 createGutter :: TextEditor -> IO Gtk.ListView
 createGutter textEditor = do
-  model <- Gtk.stringListNew $ Just ["1"]
-  selectionModel <- Gtk.noSelectionNew $ Just model
+  selectionModel <- Gtk.noSelectionNew . Just =<< Gtk.stringListNew (Just ["1"])
+  listView <- Gtk.listViewNew (Just selectionModel) (Nothing :: Maybe Gtk.SignalListItemFactory)
+
   listFactory <- Gtk.signalListItemFactoryNew
-  listView <- Gtk.listViewNew (Just selectionModel) (Just listFactory)
+
+  -- Bind the signals before setting giving ownership of the list factory to the list view.
+  -- Otherwise I get warnings about disowned pointers.
+  void $ Gtk.onSignalListItemFactorySetup listFactory onSetup
+  void $ Gtk.onSignalListItemFactoryBind listFactory $ onBind listView
+
+  Gtk.listViewSetFactory listView $ Just listFactory
 
   textBuffer <- Gtk.textViewGetBuffer textEditor
-  void $ Gtk.onTextBufferChanged textBuffer $ do
-    contents <- getContents textEditor
-    nitems <-  Gtk.listViewGetModel listView
-                >>= castTo Gtk.NoSelection  . fromJust
-                >>= Gtk.noSelectionGetModel . fromJust
-                >>= Gio.listModelGetNItems  . fromJust
-    model <- getModel listView
-    let linums = map (T.pack . show) [1 .. T.count "\n" contents + 1]
-    Gtk.stringListSplice model 0 nitems (Just linums)
-
-  void $ Gtk.onSignalListItemFactorySetup listFactory $ \listItem -> do
-    listItemLabel <- Gtk.labelNew $ Just ""
-    Gtk.labelSetSingleLineMode listItemLabel True
-    Gtk.widgetSetValign listItemLabel Gtk.AlignCenter
-    Gtk.listItemSetChild listItem $ Just listItemLabel
-
-  void $ Gtk.onSignalListItemFactoryBind listFactory $ \listItem -> do
-    pos <- Gtk.listItemGetPosition listItem
-    model <- getModel listView
-    Just linum <- Gtk.stringListGetString model pos
-    Just listItemLabel <- castTo Gtk.Label . fromJust =<< Gtk.listItemGetChild listItem
-    Gtk.labelSetText listItemLabel linum
-    Gtk.listItemSetChild listItem $ Just listItemLabel
+  void $ Gtk.onTextBufferChanged textBuffer (getContents textEditor >>= updateGutter listView)
 
   pure listView
 
   where
+    onSetup listItem = do
+      listItemLabel <- Gtk.labelNew $ Just ""
+      Gtk.labelSetSingleLineMode listItemLabel True
+      Gtk.widgetSetValign listItemLabel Gtk.AlignCenter
+      Gtk.listItemSetChild listItem $ Just listItemLabel
+
+    onBind listView listItem = do
+      pos <- Gtk.listItemGetPosition listItem
+      model <- getModel listView
+      Just linum <- Gtk.stringListGetString model pos
+      Just listItemLabel <- castTo Gtk.Label . fromJust =<< Gtk.listItemGetChild listItem
+      Gtk.labelSetText listItemLabel linum
+      Gtk.listItemSetChild listItem $ Just listItemLabel
+
+    updateGutter listView contents = do
+      nitems <-  Gtk.listViewGetModel listView
+                  >>= castTo Gtk.NoSelection  . fromJust
+                  >>= Gtk.noSelectionGetModel . fromJust
+                  >>= Gio.listModelGetNItems  . fromJust
+      model <- getModel listView
+      let linums = map (T.pack . show) [1 .. T.count "\n" contents + 1]
+      Gtk.stringListSplice model 0 nitems (Just linums)
+
     getModel listView = do
       Just selectionModel <- castTo Gtk.NoSelection . fromJust =<< Gtk.listViewGetModel listView
       Just stringListModel <- castTo Gtk.StringList . fromJust =<< Gtk.noSelectionGetModel selectionModel
