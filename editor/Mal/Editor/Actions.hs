@@ -8,23 +8,26 @@ module Mal.Editor.Actions
 )
 where
 
-import           Mal.Editor.Application.Handle (appApplication,
-                                                appExecutionOutput,
-                                                appFileManager, appTextEditor)
-import qualified Mal.Editor.Application.Handle as App
-import qualified Mal.Editor.FileManager        as FileManager
-import qualified Mal.Editor.MessageDialog      as MessageDialog
-import qualified Mal.Editor.TextEditor         as TextEditor
+import           Mal.Editor.Application.Handle  (appApplication,
+                                                 appExecutionOutput,
+                                                 appFileManager,
+                                                 appNotificationHandle,
+                                                 appTextEditor)
+import qualified Mal.Editor.Application.Handle  as App
+import qualified Mal.Editor.FileManager         as FileManager
+import qualified Mal.Editor.MessageDialog       as MessageDialog
+import qualified Mal.Editor.Notification.Handle as Notification
+import qualified Mal.Editor.TextEditor          as TextEditor
 
 import qualified Mal
 
 import           Control.Lens
-import           Control.Monad                 (forM_, void)
+import           Control.Monad                  (forM_, void)
 import           Data.GI.Base
-import           Data.Text                     (Text)
-import qualified Data.Text                     as T
-import qualified GI.Gio                        as Gio
-import qualified GI.Gtk                        as Gtk
+import           Data.Text                      (Text)
+import qualified Data.Text                      as T
+import qualified GI.Gio                         as Gio
+import qualified GI.Gtk                         as Gtk
 
 data AppAction =
   AppQuit
@@ -122,7 +125,7 @@ getAction AppSaveFile handle = do
   currentTextEditorContents <- TextEditor.getContents (handle^.appTextEditor)
   FileManager.setFileContents (handle^.appFileManager) currentTextEditorContents
   FileManager.save $ handle^.appFileManager
-  App.notify handle "File saved"
+  Notification.send (handle^.appNotificationHandle) "File saved"
 
 getAction AppShowAbout _ = do
   aboutDialog <- Gtk.aboutDialogNew

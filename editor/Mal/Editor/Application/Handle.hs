@@ -1,37 +1,36 @@
-{-# LANGUAGE TypeApplications #-}
 module Mal.Editor.Application.Handle
 (
     Handle
   , appApplication
   , appExecutionOutput
   , appFileManager
+  , appNotificationHandle
   , appTextEditor
   , new
-  , notify
-  , reset
   , openFile
+  , reset
 )
 where
 
-import qualified Mal.Editor.FileManager as FileManager
-import           Mal.Editor.InfoBar     (InfoBar, infoBarBar, infoBarLabel)
-import           Mal.Editor.TextEditor  (TextEditor)
-import qualified Mal.Editor.TextEditor  as TextEditor
+import qualified Mal.Editor.FileManager         as FileManager
+import           Mal.Editor.InfoBar             (InfoBar)
+import qualified Mal.Editor.Notification.Handle as Notification
+import           Mal.Editor.TextEditor          (TextEditor)
+import qualified Mal.Editor.TextEditor          as TextEditor
 
-import           Control.Concurrent     (forkIO, threadDelay)
 import           Control.Lens
-import           Control.Monad          (void)
-import           Data.Text              (Text)
-import qualified GI.GLib                as GLib
-import qualified GI.Gtk                 as Gtk
+import           Control.Monad                  (void)
+import           Data.Text                      (Text)
+import qualified GI.Gio                         as Gio
+import qualified GI.Gtk                         as Gtk
 
 data Handle =
   Handle
-  { _appApplication     :: Gtk.Application
-  , _appFileManager     :: FileManager.Handle
-  , _appTextEditor      :: TextEditor
-  , _appInfoBar         :: InfoBar
-  , _appExecutionOutput :: TextEditor
+  { _appApplication        :: Gtk.Application
+  , _appFileManager        :: FileManager.Handle
+  , _appTextEditor         :: TextEditor
+  , _appExecutionOutput    :: TextEditor
+  , _appNotificationHandle :: Notification.Handle InfoBar Text
   }
 
 makeLenses ''Handle
@@ -40,17 +39,21 @@ makeLenses ''Handle
 new ::
   Gtk.Application
   -> TextEditor
-  -> InfoBar
   -> TextEditor
+  -> Notification.Handle InfoBar Text
   -> IO Handle
-new application textEditor infoBar executionOutput = do
+new application textEditor executionOutput notificationHandle = do
   fileManager <- FileManager.new Nothing
+
+  Notification.start notificationHandle
+  void $ Gio.onApplicationShutdown application (Notification.close notificationHandle)
+
   pure $ Handle
     { _appApplication = application
     , _appTextEditor = textEditor
-    , _appInfoBar = infoBar
     , _appExecutionOutput = executionOutput
     , _appFileManager = fileManager
+    , _appNotificationHandle = notificationHandle
     }
 
 -- | Reset the application to a blank slate.
@@ -65,13 +68,3 @@ openFile handle filename = do
   FileManager.openFile (handle^.appFileManager) filename
   fileContents <- FileManager.getFileContents (handle^.appFileManager)
   TextEditor.setContents (handle^.appTextEditor) fileContents
-
-notify :: Handle -> Text -> IO ()
-notify handle message = do
-  Gtk.labelSetText (handle^.appInfoBar.infoBarLabel) message
-  Gtk.widgetShow $ handle^.appInfoBar.infoBarBar
-
-  void $ forkIO $ do
-    threadDelay $ 10^6
-    void $ GLib.idleAdd GLib.PRIORITY_HIGH_IDLE $
-            Gtk.widgetHide (handle^.appInfoBar.infoBarBar) >> pure False

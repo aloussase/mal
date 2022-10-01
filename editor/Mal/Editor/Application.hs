@@ -4,20 +4,21 @@ module Mal.Editor.Application
 )
 where
 
-import qualified Mal.Editor.Actions            as Actions
-import qualified Mal.Editor.Application.Handle as App
-import qualified Mal.Editor.ExecutionWindow    as ExecutionWindow
-import           Mal.Editor.InfoBar            (infoBarBar)
-import qualified Mal.Editor.InfoBar            as InfoBar
-import qualified Mal.Editor.MenuBar            as MenuBar
-import qualified Mal.Editor.TextEditor         as TextEditor
-import qualified Mal.Editor.Toolbar            as ToolBar
+import qualified Mal.Editor.Actions             as Actions
+import qualified Mal.Editor.Application.Handle  as App
+import qualified Mal.Editor.ExecutionWindow     as ExecutionWindow
+import           Mal.Editor.InfoBar             (infoBarBar)
+import qualified Mal.Editor.InfoBar             as InfoBar
+import qualified Mal.Editor.MenuBar             as MenuBar
+import qualified Mal.Editor.Notification.Handle as Notification
+import qualified Mal.Editor.TextEditor          as TextEditor
+import qualified Mal.Editor.Toolbar             as ToolBar
 
 import           Control.Lens
-import           Control.Monad                 (void)
-import           Data.Text                     (Text)
-import qualified GI.Gio                        as Gio
-import qualified GI.Gtk                        as Gtk
+import           Control.Monad                  (void)
+import           Data.Text                      (Text)
+import qualified GI.Gio                         as Gio
+import qualified GI.Gtk                         as Gtk
 
 appId :: Text
 appId = "io.github.aloussase.mal"
@@ -38,10 +39,12 @@ runApplication app = do
   Gtk.setWindowDefaultHeight win 600
 
   infoBar <- InfoBar.new
+  notificationSink <- Notification.new infoBar
+
   (textEditor, panedWidget, executionOutputTextEditor) <- createMainArea
 
-  appState <- App.new app textEditor infoBar executionOutputTextEditor
-  
+  appState <- App.new app textEditor executionOutputTextEditor notificationSink
+
   Actions.createActions appState
 
   -- Create the toolbars

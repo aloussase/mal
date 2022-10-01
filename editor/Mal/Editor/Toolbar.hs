@@ -8,8 +8,8 @@ where
 
 import           Mal.Editor.Actions
 
-import           Data.Text                     (Text)
-import qualified GI.Gtk                        as Gtk
+import           Data.Text          (Text)
+import qualified GI.Gtk             as Gtk
 
 type ToolBar = Gtk.Box
 type ToolBarButton = Gtk.Button
