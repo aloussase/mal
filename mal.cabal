@@ -51,12 +51,13 @@ executable mal-editor
     other-modules:    Mal.Editor.Application
                     , Mal.Editor.Actions
                     , Mal.Editor.Application.Handle
-                    , Mal.Editor.MenuBar
-                    , Mal.Editor.TextEditor
-                    , Mal.Editor.Toolbar
-                    , Mal.Editor.MessageDialog
                     , Mal.Editor.ExecutionWindow
                     , Mal.Editor.FileManager
+                    , Mal.Editor.InfoBar
+                    , Mal.Editor.MenuBar
+                    , Mal.Editor.MessageDialog
+                    , Mal.Editor.TextEditor
+                    , Mal.Editor.Toolbar
     ghc-options:      -Wall -Wunused-packages -threaded
     build-depends:
           mal

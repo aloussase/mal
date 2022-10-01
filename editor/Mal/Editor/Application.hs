@@ -7,10 +7,13 @@ where
 import qualified Mal.Editor.Actions            as Actions
 import qualified Mal.Editor.Application.Handle as App
 import qualified Mal.Editor.ExecutionWindow    as ExecutionWindow
+import           Mal.Editor.InfoBar            (infoBarBar)
+import qualified Mal.Editor.InfoBar            as InfoBar
 import qualified Mal.Editor.MenuBar            as MenuBar
 import qualified Mal.Editor.TextEditor         as TextEditor
 import qualified Mal.Editor.Toolbar            as ToolBar
 
+import           Control.Lens
 import           Control.Monad                 (void)
 import           Data.Text                     (Text)
 import qualified GI.Gio                        as Gio
@@ -34,10 +37,11 @@ runApplication app = do
   Gtk.setWindowDefaultWidth win 800
   Gtk.setWindowDefaultHeight win 600
 
-  (infoBar, infoLabel) <- createInfoBar
+  infoBar <- InfoBar.new
   (textEditor, panedWidget, executionOutputTextEditor) <- createMainArea
 
-  appState <- App.new app textEditor infoBar infoLabel executionOutputTextEditor
+  appState <- App.new app textEditor infoBar executionOutputTextEditor
+  
   Actions.createActions appState
 
   -- Create the toolbars
@@ -49,7 +53,7 @@ runApplication app = do
 
   Gtk.boxAppend mainLayout menuBar
   Gtk.boxAppend mainLayout toolbar
-  Gtk.boxAppend mainLayout infoBar
+  Gtk.boxAppend mainLayout (infoBar^.infoBarBar)
   Gtk.boxAppend mainLayout panedWidget
 
   Gtk.windowSetChild win $ Just mainLayout
@@ -67,15 +71,3 @@ createMainArea = do
   Gtk.panedSetStartChild panedWidget $ Just editorWindow
   Gtk.panedSetEndChild panedWidget $ Just executionWindow
   pure (textEditor, panedWidget, executionOutputTextEditor)
-
-createInfoBar :: IO (Gtk.InfoBar, Gtk.Label)
-createInfoBar = do
-  infoBar <- Gtk.infoBarNew
-  Gtk.infoBarSetMessageType infoBar Gtk.MessageTypeInfo
-  Gtk.widgetSetValign infoBar Gtk.AlignCenter
-  Gtk.widgetHide infoBar
-  infoLabel <- Gtk.labelNew Nothing
-  Gtk.infoBarAddChild infoBar infoLabel
-  pure (infoBar, infoLabel)
-
-
